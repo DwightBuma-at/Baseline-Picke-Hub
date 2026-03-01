@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Baseline Pickle Hub | Admin Login</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              blue: '#1d4ed8', // Tailwind blue-700
+              dark: '#0f172a', // Tailwind slate-900
+              accent: '#3b82f6', // Tailwind blue-500
+            }
+          },
+          fontFamily: {
+            sans: ['Plus Jakarta Sans', 'Inter', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      background-color: #eef2f7;
+      background-image:
+        radial-gradient(circle at 14% 20%, rgba(29, 78, 216, 0.14), transparent 38%),
+        radial-gradient(circle at 84% 80%, rgba(30, 64, 175, 0.1), transparent 34%),
+        linear-gradient(160deg, #f8fafc 0%, #eff6ff 45%, #eef2ff 100%);
+      background-size: cover;
+      background-attachment: fixed;
+    }
+
+    .glass-card {
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.98) 100%);
+      border: 1px solid #dbe3f0;
+      box-shadow: 0 16px 40px -18px rgba(15, 23, 42, 0.25), 0 8px 20px -12px rgba(37, 99, 235, 0.18);
+    }
+
+    .input-field {
+      background: #f8fafc;
+      border: 1px solid #c8d4e6;
+      color: #0f172a;
+      transition: all 0.3s ease;
+    }
+
+    .input-field::placeholder {
+      color: #8fa2bd;
+    }
+
+    .input-field:focus {
+      background: #ffffff;
+      border-color: #1d4ed8;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+    }
+  </style>
+</head>
+
+<body class="min-h-screen flex items-center justify-center text-slate-800 font-sans p-4 relative overflow-hidden">
+
+  <!-- Background Accents -->
+  <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-brand-blue via-blue-400 to-brand-blue"></div>
+  <div class="absolute -top-40 -right-40 w-96 h-96 bg-brand-blue opacity-5 rounded-full blur-[100px]"></div>
+  <div class="absolute -bottom-40 -left-40 w-96 h-96 bg-brand-blue opacity-5 rounded-full blur-[100px]"></div>
+
+  <!-- Login Container -->
+  <div class="glass-card w-full max-w-md p-8 sm:p-10 rounded-2xl relative z-10">
+
+    <!-- Logo Header -->
+    <div class="text-center mb-8">
+      <div class="flex justify-center mb-6">
+        <img src="assets/baseline1.png" alt="Baseline Pickle Hub Logo"
+          class="h-36 sm:h-48 w-auto object-contain drop-shadow-[0_0_15px_rgba(59,130,246,0.3)]">
+      </div>
+      <p class="text-slate-500 text-sm font-semibold tracking-[0.2em] uppercase">Admin Portal</p>
+    </div>
+
+    <!-- Login Form -->
+    <form id="loginForm" class="space-y-6">
+
+      <!-- Error Message Container (Hidden by default) -->
+      <div id="errorMsg"
+        class="hidden bg-red-500/10 border border-red-500/50 text-red-400 text-sm px-4 py-3 rounded-lg flex items-center space-x-2 animate-pulse">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z">
+          </path>
+        </svg>
+        <span>Invalid credentials. Please try again.</span>
+      </div>
+
+      <div>
+        <label for="username" class="block text-sm font-medium text-slate-700 mb-2">Username</label>
+        <div class="relative">
+          <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+            </svg>
+          </div>
+          <input type="text" id="username" name="username" required
+            class="input-field block w-full pl-10 pr-3 py-3 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none sm:text-sm"
+            placeholder="Enter admin username">
+        </div>
+      </div>
+
+      <div>
+        <label for="password" class="block text-sm font-medium text-slate-700 mb-2">Password</label>
+        <div class="relative">
+          <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z">
+              </path>
+            </svg>
+          </div>
+          <input type="password" id="password" name="password" required
+            class="input-field block w-full pl-10 pr-3 py-3 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none sm:text-sm"
+            placeholder="••••••••">
+        </div>
+      </div>
+
+      <button type="submit"
+        class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-brand-blue hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-brand-blue transition-colors duration-200 mt-2">
+        Sign In to Dashboard
+      </button>
+    </form>
+
+    <div class="mt-8 text-center text-xs text-slate-500">
+      <p>Authorized personnel only. <br />Default credentials: admin / admin123</p>
+    </div>
+  </div>
+
+  <!-- Login Logic -->
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+
+      const usernameInput = document.getElementById('username').value.trim();
+      const passwordInput = document.getElementById('password').value;
+      const errorMsg = document.getElementById('errorMsg');
+      const submitBtn = this.querySelector('button[type="submit"]');
+
+      // Hardcoded Credentials
+      const VALID_USER = 'admin';
+      const VALID_PASS = 'admin123';
+
+      // Loading state
+      const originalBtnText = submitBtn.innerHTML;
+      submitBtn.innerHTML = `
+                <svg class="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Authenticating...
+            `;
+      submitBtn.disabled = true;
+
+      // Simulate network delay for premium feel
+      setTimeout(() => {
+        if (usernameInput === VALID_USER && passwordInput === VALID_PASS) {
+          errorMsg.classList.add('hidden');
+          // Store simple auth flag in session storage
+          sessionStorage.setItem('baseline_auth', 'true');
+
+          // Button success state
+          submitBtn.classList.remove('bg-brand-blue', 'hover:bg-blue-800');
+          submitBtn.classList.add('bg-green-500', 'hover:bg-green-600');
+          submitBtn.innerHTML = `
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        Success! Redirecting...
+                    `;
+
+          setTimeout(() => {
+            window.location.href = 'dashboard.html';
+          }, 800);
+        } else {
+          // Reset button and show error
+          submitBtn.innerHTML = originalBtnText;
+          submitBtn.disabled = false;
+          errorMsg.classList.remove('hidden');
+
+          // Add shake effect to card
+          const card = document.querySelector('.glass-card');
+          card.style.transform = 'translateX(-10px)';
+          setTimeout(() => card.style.transform = 'translateX(10px)', 100);
+          setTimeout(() => card.style.transform = 'translateX(-10px)', 200);
+          setTimeout(() => card.style.transform = 'translateX(10px)', 300);
+          setTimeout(() => card.style.transform = 'translateX(0)', 400);
+        }
+      }, 800);
+    });
+  </script>
+</body>
+
+</html>

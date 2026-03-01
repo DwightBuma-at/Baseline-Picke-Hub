@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Baseline Pickle Hub | Courts</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              blue: '#3b82f6', /* blue-500 */
+              accent: '#60a5fa', /* blue-400 */
+              dark: '#1e293b', /* slate-800 */
+            }
+          },
+          fontFamily: {
+            sans: ['Plus Jakarta Sans', 'Inter', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      background-color: #f8fafc;
+      color: #334155;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+
+    .court-card {
+      transition: all 0.2s ease-in-out;
+    }
+
+    .court-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025);
+    }
+
+    /* Toast container */
+    #toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+  </style>
+</head>
+
+<body class="font-sans antialiased min-h-screen flex overflow-hidden">
+
+  <!-- Auth check (simulate) -->
+  <script>
+    if (!sessionStorage.getItem('baseline_auth')) {
+      window.location.href = 'index.html';
+    }
+  </script>
+
+  <!-- Sidebar -->
+  <aside id="app-sidebar"
+    class="w-64 bg-white border-r border-slate-200 hidden md:flex flex-col h-screen shadow-sm fixed inset-y-0 left-0 z-50 md:static md:z-20 transform -translate-x-full md:translate-x-0 transition-transform duration-200">
+    <!-- Brand -->
+    <div class="h-20 flex items-center px-6 border-b border-slate-100">
+      <div class="flex items-center">
+        <div class="flex flex-col">
+          <span class="font-extrabold text-3xl leading-none text-slate-900 tracking-[-0.03em]">Baseline</span>
+          <span class="text-sm font-semibold text-brand-blue tracking-[0.18em] uppercase">Pickle Hub</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Nav Links -->
+    <nav class="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
+      <a href="dashboard.html"
+        class="flex items-center gap-3 px-3 py-2.5 text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z">
+          </path>
+        </svg>
+        Dashboard
+      </a>
+
+      <a href="players.html"
+        class="flex items-center gap-3 px-3 py-2.5 text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z">
+          </path>
+        </svg>
+        Players
+      </a>
+
+      <a href="courts.html"
+        class="flex items-center gap-3 px-3 py-2.5 bg-blue-50 text-brand-blue rounded-lg font-medium transition-colors">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
+          </path>
+        </svg>
+        Courts
+      </a>
+
+      <a href="game-logs.html"
+        class="flex items-center gap-3 px-3 py-2.5 text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+          </path>
+        </svg>
+        Game Logs
+      </a>
+    </nav>
+
+    <!-- Admin User profile footer -->
+    <div class="p-4 border-t border-slate-200">
+      <div class="flex items-center gap-3 px-3 py-2">
+        <div class="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
+          <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+          </svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-semibold text-slate-900 truncate">Admin User</p>
+          <p class="text-xs text-slate-500 truncate">Super Admin</p>
+        </div>
+        <button onclick="openLogoutModal()" class="text-slate-400 hover:text-rose-500 transition-colors" title="Logout">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <div id="mobile-sidebar-overlay" onclick="closeMobileSidebar()"
+    class="hidden md:hidden fixed inset-0 bg-slate-900/40 z-40"></div>
+
+  <!-- Mobile Header -->
+  <div
+    class="md:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 z-30">
+    <div class="flex flex-col leading-tight">
+      <span class="font-extrabold text-xl leading-none text-slate-900 tracking-[-0.02em]">Baseline</span>
+      <span class="text-xs font-semibold text-brand-blue tracking-[0.12em] uppercase">Pickle Hub</span>
+    </div>
+    <button type="button" onclick="openMobileSidebar()" aria-label="Open sidebar"
+      class="text-slate-500 hover:text-slate-900 focus:outline-none">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Main Content Area -->
+  <div class="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50 pt-16 md:pt-0">
+
+    <!-- Top Header -->
+    <header
+      class="h-20 bg-white/80 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-8 z-10 shrink-0 hidden md:flex">
+      <div>
+        <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Courts</h1>
+      </div>
+    </header>
+
+    <!-- Scrollable Content -->
+    <main class="flex-1 overflow-y-auto p-4 md:p-8">
+      <div class="max-w-7xl mx-auto flex flex-col h-full">
+
+        <!-- Courts Grid -->
+        <section>
+          <div class="flex items-center justify-between mb-5">
+            <h2 class="text-lg font-bold text-slate-900">5 Courts Monitoring</h2>
+          </div>
+          <div id="courts-container" class="grid grid-cols-1 gap-3">
+            <!-- Court cards injected via JS -->
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Logout Confirmation Modal -->
+  <div id="logout-modal"
+    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
+    <div class="bg-white w-full max-w-sm rounded-2xl border border-slate-200 shadow-2xl p-6">
+      <h3 class="text-lg font-bold text-slate-900">Confirm Logout</h3>
+      <p class="mt-2 text-sm text-slate-600">Are you sure you want to log out?</p>
+      <div class="mt-6 flex items-center justify-end gap-3">
+        <button type="button" onclick="closeLogoutModal()"
+          class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors">
+          Cancel
+        </button>
+        <button type="button" onclick="confirmLogout()"
+          class="px-4 py-2 text-sm font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition-colors">
+          Logout
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Court Details Modal -->
+  <div id="court-details-modal"
+    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
+    <div class="bg-white w-full max-w-lg rounded-2xl border border-slate-200 shadow-2xl overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+        <div>
+          <h3 id="court-modal-title" class="text-lg font-bold text-slate-900">Court</h3>
+          <p id="court-modal-status" class="text-sm text-slate-500">Status</p>
+        </div>
+        <button onclick="closeCourtModal()"
+          class="text-slate-400 hover:text-slate-700 transition-colors p-1 rounded-md hover:bg-slate-200" title="Close">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+
+      <div id="court-view-mode" class="p-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p class="text-xs font-semibold tracking-wider text-slate-500 uppercase">Team A</p>
+            <ul id="team-a-list" class="mt-3 space-y-2"></ul>
+          </div>
+          <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p class="text-xs font-semibold tracking-wider text-slate-500 uppercase">Team B</p>
+            <ul id="team-b-list" class="mt-3 space-y-2"></ul>
+          </div>
+        </div>
+
+        <div class="mt-5 flex items-center justify-end">
+          <button type="button" id="finish-game-btn" onclick="openFinishGameMode()"
+            class="px-5 py-2.5 bg-brand-blue hover:bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-brand-blue">
+            Finish Game
+          </button>
+        </div>
+      </div>
+
+      <div id="court-score-mode" class="hidden p-6 space-y-5">
+        <p class="text-sm text-slate-600">Enter final scores to determine the winner.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label for="team-a-score" class="block text-sm font-semibold text-slate-700 mb-1.5">Team A Score</label>
+            <input id="team-a-score" type="number" min="0"
+              class="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-900 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-colors"
+              placeholder="0">
+          </div>
+          <div>
+            <label for="team-b-score" class="block text-sm font-semibold text-slate-700 mb-1.5">Team B Score</label>
+            <input id="team-b-score" type="number" min="0"
+              class="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-900 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-colors"
+              placeholder="0">
+          </div>
+        </div>
+
+        <div class="pt-2 flex items-center justify-end gap-3">
+          <button type="button" onclick="backToCourtView()"
+            class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors">
+            Back
+          </button>
+          <button type="button" onclick="submitFinishedGame()"
+            class="px-5 py-2.5 bg-brand-blue hover:bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-brand-blue">
+            Submit
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Application Logic -->
+  <script>
+    function getSystemState() {
+      const defaultState = {
+        coords: [
+          { id: 1, name: 'Court 1', status: 'available', players: [] },
+          { id: 2, name: 'Court 2', status: 'available', players: [] },
+          { id: 3, name: 'Court 3', status: 'available', players: [] },
+          { id: 4, name: 'Court 4', status: 'available', players: [] },
+          { id: 5, name: 'Court 5', status: 'available', players: [] }
+        ],
+        queue: []
+      };
+      const stateStr = localStorage.getItem('baseline_state');
+      if (!stateStr) return defaultState;
+
+      try {
+        const parsedState = JSON.parse(stateStr);
+        const parsedCoords = Array.isArray(parsedState?.coords) ? parsedState.coords : [];
+        const normalizedCoords = defaultState.coords.map(defaultCourt => {
+          const existingCourt = parsedCoords.find(c => c.id === defaultCourt.id);
+          return existingCourt
+            ? {
+                ...defaultCourt,
+                ...existingCourt,
+                players: Array.isArray(existingCourt.players) ? existingCourt.players : []
+              }
+            : defaultCourt;
+        });
+
+        const state = {
+          coords: normalizedCoords,
+          queue: Array.isArray(parsedState?.queue) ? parsedState.queue : []
+        };
+
+        if (!Array.isArray(parsedState?.coords) || parsedCoords.length !== 5) {
+          saveSystemState(state);
+        }
+
+        return state;
+      } catch {
+        saveSystemState(defaultState);
+        return defaultState;
+      }
+    }
+
+    function saveSystemState(state) {
+      localStorage.setItem('baseline_state', JSON.stringify(state));
+    }
+
+    function getGameLogs() {
+      const logs = localStorage.getItem('baseline_game_logs');
+      if (!logs) return [];
+      try {
+        const parsed = JSON.parse(logs);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function saveGameLogs(logs) {
+      localStorage.setItem('baseline_game_logs', JSON.stringify(logs));
+    }
+
+    let appState = getSystemState();
+    let selectedCourtId = null;
+    let timerIntervalId = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initMobileSidebar();
+      ensureCourtGameTimers();
+      renderCourts();
+      startCourtTimerTick();
+
+      // Listen for cross-tab updates
+      window.addEventListener('storage', (e) => {
+        if (e.key === 'baseline_state') {
+          appState = JSON.parse(e.newValue);
+          ensureCourtGameTimers();
+          renderCourts();
+          if (selectedCourtId !== null) {
+            openCourtModal(selectedCourtId);
+          }
+        }
+      });
+
+      document.getElementById('court-details-modal')?.addEventListener('click', function (e) {
+        if (e.target === this) {
+          closeCourtModal();
+        }
+      });
+    });
+
+    function renderCourts() {
+      const container = document.getElementById('courts-container');
+      container.innerHTML = '';
+
+      appState.coords.slice(0, 5).forEach(court => {
+        const playersCount = Array.isArray(court.players) ? court.players.length : 0;
+        const isInGame = playersCount === 4;
+        const isAvailable = court.status === 'available';
+        const borderIndicator = isInGame ? 'bg-indigo-500' : isAvailable ? 'bg-emerald-500' : 'bg-amber-500';
+        const gameTimerText = isInGame && court.gameStartedAt
+          ? formatDuration(Date.now() - Number(court.gameStartedAt))
+          : '--:--';
+
+        const statusTags = isInGame
+          ? `
+            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700">In-Game</span>
+            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700">Occupied</span>
+          `
+          : isAvailable
+            ? `<span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700">Available</span>`
+            : `<span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700">Occupied</span>`;
+
+        const cardHtml = `
+            <button onclick="openCourtModal(${court.id})" class="bg-white court-card rounded-xl border border-slate-200 shadow-sm flex overflow-hidden relative text-left focus:outline-none focus:ring-2 focus:ring-brand-blue min-h-[88px] items-center">
+                <div class="absolute top-0 left-0 w-full h-1 ${borderIndicator}"></div>
+              <div class="w-full px-5 py-4">
+                <div class="flex items-center justify-between gap-4">
+                  <div class="min-w-0">
+                  <h3 class="font-bold text-xl text-slate-900">${court.name}</h3>
+                  <p class="mt-1 text-sm text-slate-500">Click to view Team A / Team B</p>
+                  <p class="mt-1 text-sm font-semibold ${isInGame ? 'text-indigo-700' : 'text-slate-400'}">Timer: ${gameTimerText}</p>
+                  </div>
+                  <div class="flex items-center gap-3 shrink-0">
+                    ${statusTags}
+                    <span class="text-sm font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full">${playersCount}/4</span>
+                  </div>
+                    </div>
+                </div>
+            </button>
+        `;
+        container.insertAdjacentHTML('beforeend', cardHtml);
+      });
+    }
+
+    function renderTeamSlots(players, elementId) {
+      const teamList = document.getElementById(elementId);
+      if (!teamList) return;
+
+      const slots = [players[0], players[1]];
+      teamList.innerHTML = slots.map(player => `
+        <li class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">
+          ${player?.name || '—'}
+        </li>
+      `).join('');
+    }
+
+    function getCourtTeams(court) {
+      const explicitTeamA = court.players.filter(player => player.team === 'Team A');
+      const explicitTeamB = court.players.filter(player => player.team === 'Team B');
+
+      const unassigned = court.players.filter(player => !player.team || (player.team !== 'Team A' && player.team !== 'Team B'));
+
+      const teamA = [...explicitTeamA];
+      const teamB = [...explicitTeamB];
+
+      unassigned.forEach(player => {
+        if (teamA.length <= teamB.length) teamA.push(player);
+        else teamB.push(player);
+      });
+
+      return { teamA, teamB };
+    }
+
+    function openCourtModal(courtId) {
+      const court = appState.coords.find(c => c.id === courtId);
+      if (!court) return;
+
+      selectedCourtId = courtId;
+      document.getElementById('court-modal-title').innerText = court.name;
+      const isInGame = court.players.length === 4 && !!court.gameStartedAt;
+      const timerText = isInGame ? formatDuration(Date.now() - Number(court.gameStartedAt)) : '--:--';
+      document.getElementById('court-modal-status').innerText = `Status: ${court.status} • Timer: ${timerText}`;
+
+      const { teamA: teamAPlayers, teamB: teamBPlayers } = getCourtTeams(court);
+
+      renderTeamSlots(teamAPlayers, 'team-a-list');
+      renderTeamSlots(teamBPlayers, 'team-b-list');
+
+      const canFinishGame = court.players.length === 4 && teamAPlayers.length > 0 && teamBPlayers.length > 0;
+      const finishButton = document.getElementById('finish-game-btn');
+      if (finishButton) {
+        finishButton.disabled = !canFinishGame;
+        finishButton.classList.toggle('opacity-50', !canFinishGame);
+        finishButton.classList.toggle('cursor-not-allowed', !canFinishGame);
+      }
+
+      backToCourtView();
+
+      const modal = document.getElementById('court-details-modal');
+      if (!modal) return;
+
+      modal.classList.remove('hidden');
+      requestAnimationFrame(() => {
+        modal.classList.remove('opacity-0');
+        modal.classList.add('opacity-100');
+      });
+    }
+
+    function closeCourtModal() {
+      const modal = document.getElementById('court-details-modal');
+      if (!modal) return;
+
+      modal.classList.remove('opacity-100');
+      modal.classList.add('opacity-0');
+      setTimeout(() => {
+        modal.classList.add('hidden');
+      }, 200);
+
+      selectedCourtId = null;
+    }
+
+    function openFinishGameMode() {
+      if (selectedCourtId === null) return;
+
+      const court = appState.coords.find(c => c.id === selectedCourtId);
+      if (!court || court.players.length === 0) return;
+
+      const { teamA: teamAPlayers, teamB: teamBPlayers } = getCourtTeams(court);
+      if (teamAPlayers.length === 0 || teamBPlayers.length === 0) {
+        return;
+      }
+
+      document.getElementById('court-view-mode').classList.add('hidden');
+      document.getElementById('court-score-mode').classList.remove('hidden');
+
+      document.getElementById('team-a-score').value = '';
+      document.getElementById('team-b-score').value = '';
+      document.getElementById('team-a-score').focus();
+    }
+
+    function backToCourtView() {
+      document.getElementById('court-score-mode').classList.add('hidden');
+      document.getElementById('court-view-mode').classList.remove('hidden');
+    }
+
+    function submitFinishedGame() {
+      if (selectedCourtId === null) return;
+
+      const court = appState.coords.find(c => c.id === selectedCourtId);
+      if (!court || court.players.length === 0) return;
+
+      const teamAScore = Number(document.getElementById('team-a-score').value);
+      const teamBScore = Number(document.getElementById('team-b-score').value);
+
+      if (!Number.isFinite(teamAScore) || !Number.isFinite(teamBScore) || teamAScore < 0 || teamBScore < 0) {
+        alert('Please enter valid scores for Team A and Team B.');
+        return;
+      }
+
+      const { teamA: teamAPlayers, teamB: teamBPlayers } = getCourtTeams(court);
+      if (teamAPlayers.length === 0 || teamBPlayers.length === 0) {
+        alert('Finish Game requires at least one player in Team A and Team B.');
+        return;
+      }
+
+      const teamANames = teamAPlayers.map(player => player.name);
+      const teamBNames = teamBPlayers.map(player => player.name);
+      const startedAt = Number(court.gameStartedAt);
+      const elapsedMs = Number.isFinite(startedAt) && startedAt > 0 ? Math.max(0, Date.now() - startedAt) : 0;
+      const gameDuration = formatDuration(elapsedMs);
+
+      let status = 'Draw';
+      if (teamAScore > teamBScore) status = `Winner: Team A (${teamAScore}-${teamBScore})`;
+      if (teamBScore > teamAScore) status = `Winner: Team B (${teamBScore}-${teamAScore})`;
+
+      const now = new Date();
+      const logEntry = {
+        datetime: now.toLocaleString([], { month: 'short', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        court: court.name,
+        teamA: teamANames,
+        teamB: teamBNames,
+        teamAScore,
+        teamBScore,
+        duration: gameDuration,
+        status
+      };
+
+      const logs = getGameLogs();
+      logs.unshift(logEntry);
+      saveGameLogs(logs);
+
+      const finishedPlayerIds = new Set(court.players.map(player => String(player.id)));
+      appState.queue.forEach(queuePlayer => {
+        if (finishedPlayerIds.has(String(queuePlayer.id))) {
+          queuePlayer.status = 'Waiting';
+          queuePlayer.assignedCourt = null;
+          queuePlayer.team = null;
+          queuePlayer.autoQueue = false;
+        }
+      });
+
+      court.players = [];
+      court.status = 'available';
+      court.gameStartedAt = null;
+      saveSystemState(appState);
+
+      closeCourtModal();
+      window.location.href = 'game-logs.html';
+    }
+
+    function openLogoutModal() {
+      const modal = document.getElementById('logout-modal');
+      if (!modal) return;
+      modal.classList.remove('hidden');
+      requestAnimationFrame(() => {
+        modal.classList.remove('opacity-0');
+        modal.classList.add('opacity-100');
+      });
+    }
+
+    function closeLogoutModal() {
+      const modal = document.getElementById('logout-modal');
+      if (!modal) return;
+      modal.classList.remove('opacity-100');
+      modal.classList.add('opacity-0');
+      setTimeout(() => {
+        modal.classList.add('hidden');
+      }, 200);
+    }
+
+    document.getElementById('logout-modal')?.addEventListener('click', function (e) {
+      if (e.target === this) {
+        closeLogoutModal();
+      }
+    });
+
+    function confirmLogout() {
+      logout();
+    }
+
+    function initMobileSidebar() {
+      const sidebarLinks = document.querySelectorAll('#app-sidebar nav a');
+      sidebarLinks.forEach(link => {
+        link.addEventListener('click', () => {
+          if (window.innerWidth < 768) {
+            closeMobileSidebar();
+          }
+        });
+      });
+
+      window.addEventListener('resize', () => {
+        if (window.innerWidth >= 768) {
+          closeMobileSidebar(true);
+        }
+      });
+    }
+
+    function openMobileSidebar() {
+      const sidebar = document.getElementById('app-sidebar');
+      const overlay = document.getElementById('mobile-sidebar-overlay');
+      if (!sidebar || !overlay) return;
+
+      sidebar.classList.remove('hidden', '-translate-x-full');
+      sidebar.classList.add('flex', 'translate-x-0');
+      overlay.classList.remove('hidden');
+      document.body.classList.add('overflow-hidden');
+    }
+
+    function closeMobileSidebar(skipAnimation = false) {
+      const sidebar = document.getElementById('app-sidebar');
+      const overlay = document.getElementById('mobile-sidebar-overlay');
+      if (!sidebar || !overlay) return;
+
+      overlay.classList.add('hidden');
+      sidebar.classList.remove('translate-x-0');
+      sidebar.classList.add('-translate-x-full');
+      document.body.classList.remove('overflow-hidden');
+
+      if (skipAnimation || window.innerWidth >= 768) {
+        sidebar.classList.remove('hidden', 'flex');
+        return;
+      }
+
+      setTimeout(() => {
+        if (window.innerWidth < 768) {
+          sidebar.classList.remove('flex');
+          sidebar.classList.add('hidden');
+        }
+      }, 200);
+    }
+
+    function logout() {
+      sessionStorage.removeItem('baseline_auth');
+      window.location.href = 'index.html';
+    }
+
+    function ensureCourtGameTimers() {
+      if (!Array.isArray(appState.coords)) return;
+
+      let hasChanges = false;
+      appState.coords.forEach(court => {
+        const playersCount = Array.isArray(court.players) ? court.players.length : 0;
+        if (playersCount === 4) {
+          if (!court.gameStartedAt) {
+            court.gameStartedAt = Date.now();
+            hasChanges = true;
+          }
+        } else if (court.gameStartedAt) {
+          court.gameStartedAt = null;
+          hasChanges = true;
+        }
+      });
+
+      if (hasChanges) {
+        saveSystemState(appState);
+      }
+    }
+
+    function startCourtTimerTick() {
+      if (timerIntervalId) {
+        clearInterval(timerIntervalId);
+      }
+
+      timerIntervalId = setInterval(() => {
+        const hasInGameCourt = appState.coords.some(court => {
+          const playersCount = Array.isArray(court.players) ? court.players.length : 0;
+          return playersCount === 4 && !!court.gameStartedAt;
+        });
+
+        if (!hasInGameCourt) return;
+
+        renderCourts();
+        if (selectedCourtId !== null) {
+          const selectedCourt = appState.coords.find(c => c.id === selectedCourtId);
+          if (selectedCourt) {
+            const isInGame = selectedCourt.players.length === 4 && !!selectedCourt.gameStartedAt;
+            const timerText = isInGame ? formatDuration(Date.now() - Number(selectedCourt.gameStartedAt)) : '--:--';
+            const statusElement = document.getElementById('court-modal-status');
+            if (statusElement) {
+              statusElement.innerText = `Status: ${selectedCourt.status} • Timer: ${timerText}`;
+            }
+          }
+        }
+      }, 1000);
+    }
+
+    function formatDuration(durationMs) {
+      const totalSeconds = Math.max(0, Math.floor(durationMs / 1000));
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+
+      if (hours > 0) {
+        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+      }
+
+      return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+  </script>
+</body>
+
+</html>

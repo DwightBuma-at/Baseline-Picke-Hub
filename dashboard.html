@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Baseline Pickle Hub | Dashboard</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              blue: '#3b82f6', /* blue-500 */
+              accent: '#60a5fa', /* blue-400 */
+              dark: '#1e293b', /* slate-800 */
+            }
+          },
+          fontFamily: {
+            sans: ['Plus Jakarta Sans', 'Inter', 'sans-serif'],
+          },
+          animation: {
+            'slide-up': 'slideUp 0.3s ease-out',
+          },
+          keyframes: {
+            slideUp: {
+              '0%': { transform: 'translateY(100%)', opacity: '0' },
+              '100%': { transform: 'translateY(0)', opacity: '1' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      background-color: #f8fafc;
+      /* Slate 50 */
+      color: #334155;
+      /* Slate 700 */
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+
+    .court-card {
+      transition: all 0.2s ease-in-out;
+    }
+
+    .court-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025);
+    }
+
+    /* Toast container */
+    #toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+  </style>
+</head>
+
+<body class="font-sans antialiased min-h-screen flex overflow-hidden">
+
+  <!-- Auth check (simulate) -->
+  <script>
+    if (!sessionStorage.getItem('baseline_auth')) {
+      window.location.href = 'index.html';
+    }
+  </script>
+
+  <!-- Sidebar -->
+  <aside id="app-sidebar"
+    class="w-64 bg-white border-r border-slate-200 hidden md:flex flex-col h-screen shadow-sm fixed inset-y-0 left-0 z-50 md:static md:z-20 transform -translate-x-full md:translate-x-0 transition-transform duration-200">
+    <!-- Brand -->
+    <div class="h-20 flex items-center px-6 border-b border-slate-100">
+      <div class="flex items-center">
+        <div class="flex flex-col">
+          <span class="font-extrabold text-3xl leading-none text-slate-900 tracking-[-0.03em]">Baseline</span>
+          <span class="text-sm font-semibold text-brand-blue tracking-[0.18em] uppercase">Pickle Hub</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Nav Links -->
+    <nav class="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
+      <a href="dashboard.html"
+        class="flex items-center gap-3 px-3 py-2.5 bg-blue-50 text-brand-blue rounded-lg font-medium transition-colors">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z">
+          </path>
+        </svg>
+        Dashboard
+      </a>
+
+      <a href="players.html"
+        class="flex items-center gap-3 px-3 py-2.5 text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z">
+          </path>
+        </svg>
+        Players
+      </a>
+
+      <a href="courts.html"
+        class="flex items-center gap-3 px-3 py-2.5 text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
+          </path>
+        </svg>
+        Courts
+      </a>
+
+      <a href="game-logs.html"
+        class="flex items-center gap-3 px-3 py-2.5 text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+          </path>
+        </svg>
+        Game Logs
+      </a>
+    </nav>
+
+    <!-- Admin User profile footer -->
+    <div class="p-4 border-t border-slate-200">
+      <div class="flex items-center gap-3 px-3 py-2">
+        <div class="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
+          <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+          </svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-semibold text-slate-900 truncate">Admin User</p>
+          <p class="text-xs text-slate-500 truncate">Super Admin</p>
+        </div>
+        <button onclick="openLogoutModal()" class="text-slate-400 hover:text-rose-500 transition-colors" title="Logout">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <div id="mobile-sidebar-overlay" onclick="closeMobileSidebar()"
+    class="hidden md:hidden fixed inset-0 bg-slate-900/40 z-40"></div>
+
+  <!-- Mobile Header (Visible only on small screens) -->
+  <div
+    class="md:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 z-30">
+    <div class="flex flex-col leading-tight">
+      <span class="font-extrabold text-xl leading-none text-slate-900 tracking-[-0.02em]">Baseline</span>
+      <span class="text-xs font-semibold text-brand-blue tracking-[0.12em] uppercase">Pickle Hub</span>
+    </div>
+    <button type="button" onclick="openMobileSidebar()" aria-label="Open sidebar"
+      class="text-slate-500 hover:text-slate-900 focus:outline-none">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Main Content Area -->
+  <div class="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50 pt-16 md:pt-0">
+
+    <!-- Top Header -->
+    <header
+      class="h-20 bg-white/80 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-8 z-10 shrink-0 hidden md:flex">
+      <div>
+        <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Facility Overview</h1>
+      </div>
+    </header>
+
+    <!-- Scrollable Content -->
+    <main class="flex-1 overflow-y-auto p-4 md:p-8">
+
+      <div class="max-w-6xl mx-auto space-y-8">
+        <!-- Stats Row -->
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-6">
+          <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex items-center gap-4">
+            <div class="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-brand-blue">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z">
+                </path>
+              </svg>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-slate-500">Active Players</p>
+              <h3 class="text-2xl font-bold text-slate-900" id="stat-active-players">0</h3>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex items-center gap-4">
+            <div class="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-slate-500">Available Courts</p>
+              <h3 class="text-2xl font-bold text-slate-900" id="stat-available-courts">5</h3>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex items-center gap-4">
+            <div class="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-500">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-slate-500">Waiting in Queue</p>
+              <h3 class="text-2xl font-bold text-slate-900" id="stat-waiting-queue">0</h3>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex items-center gap-4">
+            <div class="w-12 h-12 rounded-full bg-rose-50 flex items-center justify-center text-rose-500">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M4 6h16M4 10h16M9 14h6m-8 4h10"></path>
+              </svg>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-slate-500">Occupied Courts</p>
+              <h3 class="text-2xl font-bold text-slate-900" id="stat-occupied-courts">0</h3>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex items-center gap-4">
+            <div class="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center text-amber-500">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+              </svg>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-slate-500">Finished Games</p>
+              <h3 class="text-2xl font-bold text-slate-900" id="stat-finished-games">0</h3>
+            </div>
+          </div>
+        </div>
+
+        <!-- Overview Panels -->
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <section class="xl:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm">
+            <div class="px-6 py-4 border-b border-slate-200">
+              <h2 class="text-base font-bold text-slate-900">Courts Live Status</h2>
+              <p class="text-sm text-slate-500 mt-0.5">Real-time overview from Courts module</p>
+            </div>
+            <div id="dashboard-courts-list" class="p-4 space-y-3"></div>
+          </section>
+
+          <section class="bg-white rounded-xl border border-slate-200 shadow-sm">
+            <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <div>
+                <h2 class="text-base font-bold text-slate-900">Queue Snapshot</h2>
+                <p class="text-sm text-slate-500 mt-0.5">First-come, first-served waiting list</p>
+              </div>
+              <a href="players.html" class="text-sm font-semibold text-brand-blue hover:text-blue-600">Open</a>
+            </div>
+            <div id="dashboard-queue-list" class="p-4 space-y-2"></div>
+          </section>
+        </div>
+
+        <!-- Recent Finished Matches -->
+        <section class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+            <div>
+              <h2 class="text-base font-bold text-slate-900">Recent Finished Matches</h2>
+              <p class="text-sm text-slate-500 mt-0.5">Latest results from completed court games</p>
+            </div>
+            <a href="game-logs.html" class="text-sm font-semibold text-brand-blue hover:text-blue-600">View All</a>
+          </div>
+          <div id="dashboard-recent-logs" class="divide-y divide-slate-200"></div>
+        </section>
+
+
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Logout Confirmation Modal -->
+  <div id="logout-modal"
+    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
+    <div class="bg-white w-full max-w-sm rounded-2xl border border-slate-200 shadow-2xl p-6">
+      <h3 class="text-lg font-bold text-slate-900">Confirm Logout</h3>
+      <p class="mt-2 text-sm text-slate-600">Are you sure you want to log out?</p>
+      <div class="mt-6 flex items-center justify-end gap-3">
+        <button type="button" onclick="closeLogoutModal()"
+          class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors">
+          Cancel
+        </button>
+        <button type="button" onclick="confirmLogout()"
+          class="px-4 py-2 text-sm font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition-colors">
+          Logout
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notifications Container -->
+  <div id="toast-container"></div>
+
+  <!-- Application Logic -->
+  <script>
+    // System Data - Since we are decoupling the queue from courts via separate HTML files without a backend,
+    // we use localStorage to share state between dashboard.html and players.html seamlessly!
+
+    function getSystemState() {
+      const defaultState = {
+        coords: [
+          { id: 1, name: 'Court 1', status: 'available', players: [] },
+          { id: 2, name: 'Court 2', status: 'available', players: [] },
+          { id: 3, name: 'Court 3', status: 'available', players: [] },
+          { id: 4, name: 'Court 4', status: 'available', players: [] },
+          { id: 5, name: 'Court 5', status: 'available', players: [] }
+        ],
+        queue: []
+      };
+      const stateStr = localStorage.getItem('baseline_state');
+      return stateStr ? JSON.parse(stateStr) : defaultState;
+    }
+
+    function saveSystemState(state) {
+      localStorage.setItem('baseline_state', JSON.stringify(state));
+      updateStats(state);
+    }
+
+    // Initialization
+    let appState = getSystemState();
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initMobileSidebar();
+      updateStats(appState);
+
+      // Listen for cross-tab updates (e.g. if updated from players.html)
+      window.addEventListener('storage', (e) => {
+        if (e.key === 'baseline_state') {
+          appState = JSON.parse(e.newValue);
+          updateStats(appState);
+        }
+      });
+    });
+
+    function updateStats(state) {
+      let active = 0;
+      let availableCourts = 0;
+      let waiting = state.queue.filter(p => p.status === 'Waiting').length;
+
+      state.coords.forEach(c => {
+        active += c.players.length;
+        if (c.status === 'available') availableCourts++;
+      });
+
+      document.getElementById('stat-active-players').innerText = active;
+      document.getElementById('stat-available-courts').innerText = availableCourts;
+      document.getElementById('stat-waiting-queue').innerText = waiting;
+    }
+
+    // -------------------------------------------------------------
+    // UI RENDERING
+    // -------------------------------------------------------------
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const bgClass = type === 'success' ? 'bg-white' : 'bg-red-50';
+      const borderClass = type === 'success' ? 'border-emerald-200' : 'border-rose-200';
+      const textClass = type === 'success' ? 'text-slate-800' : 'text-rose-800';
+
+      const icon = type === 'success'
+        ? `<div class="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-500"><svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg></div>`
+        : `<div class="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center text-rose-500"><svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div>`;
+
+      const toast = document.createElement('div');
+      toast.className = `toast flex items-center space-x-3 p-3 rounded-xl border shadow-lg ${bgClass} ${borderClass} ${textClass}`;
+      toast.innerHTML = `
+          ${icon}
+          <span class="text-sm font-semibold">${message}</span>
+      `;
+
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.animation = 'slideUp 0.3s ease-in reverse forwards';
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    function initMobileSidebar() {
+      const sidebarLinks = document.querySelectorAll('#app-sidebar nav a');
+      sidebarLinks.forEach(link => {
+        link.addEventListener('click', () => {
+          if (window.innerWidth < 768) {
+            closeMobileSidebar();
+          }
+        });
+      });
+
+      window.addEventListener('resize', () => {
+        if (window.innerWidth >= 768) {
+          closeMobileSidebar(true);
+        }
+      });
+    }
+
+    function openMobileSidebar() {
+      const sidebar = document.getElementById('app-sidebar');
+      const overlay = document.getElementById('mobile-sidebar-overlay');
+      if (!sidebar || !overlay) return;
+
+      sidebar.classList.remove('hidden', '-translate-x-full');
+      sidebar.classList.add('flex', 'translate-x-0');
+      overlay.classList.remove('hidden');
+      document.body.classList.add('overflow-hidden');
+    }
+
+    function closeMobileSidebar(skipAnimation = false) {
+      const sidebar = document.getElementById('app-sidebar');
+      const overlay = document.getElementById('mobile-sidebar-overlay');
+      if (!sidebar || !overlay) return;
+
+      overlay.classList.add('hidden');
+      sidebar.classList.remove('translate-x-0');
+      sidebar.classList.add('-translate-x-full');
+      document.body.classList.remove('overflow-hidden');
+
+      if (skipAnimation || window.innerWidth >= 768) {
+        sidebar.classList.remove('hidden', 'flex');
+        return;
+      }
+
+      setTimeout(() => {
+        if (window.innerWidth < 768) {
+          sidebar.classList.remove('flex');
+          sidebar.classList.add('hidden');
+        }
+      }, 200);
+    }
+
+    function openLogoutModal() {
+      const modal = document.getElementById('logout-modal');
+      if (!modal) return;
+      modal.classList.remove('hidden');
+      requestAnimationFrame(() => {
+        modal.classList.remove('opacity-0');
+        modal.classList.add('opacity-100');
+      });
+    }
+
+    function closeLogoutModal() {
+      const modal = document.getElementById('logout-modal');
+      if (!modal) return;
+      modal.classList.remove('opacity-100');
+      modal.classList.add('opacity-0');
+      setTimeout(() => {
+        modal.classList.add('hidden');
+      }, 200);
+    }
+
+    document.getElementById('logout-modal')?.addEventListener('click', function (e) {
+      if (e.target === this) {
+        closeLogoutModal();
+      }
+    });
+
+    function confirmLogout() {
+      logout();
+    }
+
+    function logout() {
+      sessionStorage.removeItem('baseline_auth');
+      window.location.href = 'index.html';
+    }
+  </script>
+</body>
+
+</html>
