@@ -438,6 +438,7 @@
         const playersCount = Array.isArray(court.players) ? court.players.length : 0;
         const isInGame = playersCount === 4;
         const isAvailable = court.status === 'available';
+        const hasPlayersInCourt = playersCount > 0;
         const borderIndicator = isInGame ? 'bg-indigo-500' : isAvailable ? 'bg-emerald-500' : 'bg-amber-500';
         const gameTimerText = isInGame && court.gameStartedAt
           ? formatDuration(Date.now() - Number(court.gameStartedAt))
@@ -458,7 +459,7 @@
           : '<span class="text-xs text-slate-400">No category assigned</span>';
 
         const cardHtml = `
-            <div class="bg-white court-card rounded-xl border border-slate-200 shadow-sm overflow-hidden relative min-h-[88px]">
+            <div onclick="openCourtModal(${court.id})" class="bg-white court-card rounded-xl border border-slate-200 shadow-sm overflow-hidden relative min-h-[88px] cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-blue">
               <div class="absolute top-0 left-0 w-full h-1 ${borderIndicator}"></div>
               <div class="w-full px-5 py-4">
                 <div class="flex items-center justify-between gap-4">
@@ -474,7 +475,7 @@
                 </div>
                 <div class="mt-3 flex items-center justify-between gap-3">
                   <div class="flex flex-wrap items-center gap-2">${categoryTags}</div>
-                  <button onclick="openAssignCategoryModal(${court.id}, event)" class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 transition-colors shrink-0">Assign Category</button>
+                  <button ${hasPlayersInCourt ? 'disabled' : ''} onclick="openAssignCategoryModal(${court.id}, event)" class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 transition-colors shrink-0 ${hasPlayersInCourt ? 'opacity-50 cursor-not-allowed hover:bg-white' : ''}" title="${hasPlayersInCourt ? 'Cannot edit category while players are on the court' : 'Assign Category'}">Assign Category</button>
                 </div>
               </div>
             </div>
@@ -518,6 +519,11 @@
 
       const court = appState.coords.find(c => c.id === courtId);
       if (!court) return;
+
+      const playersCount = Array.isArray(court.players) ? court.players.length : 0;
+      if (playersCount > 0) {
+        return;
+      }
 
       selectedCategoryCourtId = courtId;
       const title = document.getElementById('assign-category-title');
