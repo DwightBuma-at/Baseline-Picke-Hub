@@ -347,6 +347,20 @@
             placeholder="Enter custom category">
         </div>
 
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1.5">Gender</label>
+          <div class="grid grid-cols-2 gap-3">
+            <label class="cursor-pointer">
+              <input type="radio" name="playerGender" value="Male" class="peer sr-only" required>
+              <div class="px-4 py-2.5 rounded-lg border border-slate-300 text-sm font-semibold text-slate-700 bg-white hover:bg-slate-50 peer-checked:border-blue-300 peer-checked:bg-blue-50 peer-checked:text-blue-700 transition-colors text-center">Male</div>
+            </label>
+            <label class="cursor-pointer">
+              <input type="radio" name="playerGender" value="Female" class="peer sr-only" required>
+              <div class="px-4 py-2.5 rounded-lg border border-slate-300 text-sm font-semibold text-slate-700 bg-white hover:bg-slate-50 peer-checked:border-pink-300 peer-checked:bg-pink-50 peer-checked:text-pink-700 transition-colors text-center">Female</div>
+            </label>
+          </div>
+        </div>
+
         <div class="pt-4 flex gap-3 justify-end items-center border-t border-slate-100">
           <button type="button" onclick="closeModal()"
             class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition">
@@ -565,11 +579,11 @@
     function getSystemState() {
       const defaultState = {
         coords: [
-          { id: 1, name: 'Court 1', status: 'available', players: [] },
-          { id: 2, name: 'Court 2', status: 'available', players: [] },
-          { id: 3, name: 'Court 3', status: 'available', players: [] },
-          { id: 4, name: 'Court 4', status: 'available', players: [] },
-          { id: 5, name: 'Court 5', status: 'available', players: [] }
+          { id: 1, name: 'Court 1', status: 'available', players: [], assignedCategories: [], genderSetting: 'Mix' },
+          { id: 2, name: 'Court 2', status: 'available', players: [], assignedCategories: [], genderSetting: 'Mix' },
+          { id: 3, name: 'Court 3', status: 'available', players: [], assignedCategories: [], genderSetting: 'Mix' },
+          { id: 4, name: 'Court 4', status: 'available', players: [], assignedCategories: [], genderSetting: 'Mix' },
+          { id: 5, name: 'Court 5', status: 'available', players: [], assignedCategories: [], genderSetting: 'Mix' }
         ],
         queue: []
       };
@@ -578,8 +592,26 @@
 
       try {
         const parsed = JSON.parse(stateStr);
+        const parsedCoords = Array.isArray(parsed?.coords) ? parsed.coords : [];
+
+        const normalizedCoords = defaultState.coords.map(defaultCourt => {
+          const existingCourt = parsedCoords.find(court => court.id === defaultCourt.id);
+
+          if (!existingCourt) {
+            return defaultCourt;
+          }
+
+          return {
+            ...defaultCourt,
+            ...existingCourt,
+            players: Array.isArray(existingCourt.players) ? existingCourt.players : [],
+            assignedCategories: Array.isArray(existingCourt.assignedCategories) ? existingCourt.assignedCategories : [],
+            genderSetting: normalizeCourtGenderSetting(existingCourt.genderSetting)
+          };
+        });
+
         return {
-          coords: Array.isArray(parsed?.coords) ? parsed.coords : defaultState.coords,
+          coords: normalizedCoords,
           queue: Array.isArray(parsed?.queue) ? parsed.queue : []
         };
       } catch {
@@ -605,6 +637,175 @@
 
     function normalizePlayerNameKey(name) {
       return String(name || '').trim().toLowerCase();
+    }
+
+    function normalizePlayerGenderValue(rawGender) {
+      const normalized = String(rawGender || '').trim().toLowerCase();
+      if (normalized === 'male') return 'Male';
+      if (normalized === 'female') return 'Female';
+      return 'Unknown';
+    }
+
+    function normalizeCourtGenderSetting(rawValue) {
+      const normalized = String(rawValue || '').trim().toLowerCase();
+      if (normalized === 'male') return 'Male';
+      if (normalized === 'female') return 'Female';
+      return 'Mix';
+    }
+
+    function getPlayerGenderKey(player) {
+      const normalizedGender = normalizePlayerGenderValue(player?.gender).toLowerCase();
+      return normalizedGender === 'male' || normalizedGender === 'female' ? normalizedGender : 'unknown';
+    }
+
+    function getPlayerCategoryKey(player) {
+      const rawCategory = String(player?.category || '').trim().toLowerCase();
+      if (rawCategory === 'customized categorize') {
+        return String(player?.customCategoryValue || '').trim().toLowerCase();
+      }
+
+      return rawCategory;
+    }
+
+    function getCourtAssignedCategoryKeys(court) {
+      if (!Array.isArray(court?.assignedCategories)) return [];
+      return court.assignedCategories
+        .map(category => String(category || '').trim().toLowerCase())
+        .filter(Boolean);
+    }
+
+    function canAssignPlayerToCourt(player, court) {
+      if (!player || !court) {
+        return { ok: false, message: 'Invalid player or court.' };
+      }
+
+      const playerCategoryKey = getPlayerCategoryKey(player);
+      if (!playerCategoryKey) {
+        return { ok: false, message: 'Player category is required before assignment.' };
+      }
+
+      const assignedCategories = getCourtAssignedCategoryKeys(court);
+      if (assignedCategories.length === 0) {
+        return { ok: false, message: `${court.name} has no category set. Configure Court Settings first.` };
+      }
+
+      if (!assignedCategories.includes(playerCategoryKey)) {
+        return { ok: false, message: `Category mismatch. ${court.name} accepts selected categories only.` };
+      }
+
+      const existingPlayers = Array.isArray(court.players) ? court.players : [];
+      const hasDifferentPlayerCategory = existingPlayers.some(existingPlayer => getPlayerCategoryKey(existingPlayer) !== playerCategoryKey);
+      if (hasDifferentPlayerCategory) {
+        return { ok: false, message: 'Only players with the same category can play on the same court.' };
+      }
+
+      const courtGenderSetting = normalizeCourtGenderSetting(court.genderSetting);
+      const playerGenderKey = getPlayerGenderKey(player);
+      const playerGenderLabel = playerGenderKey === 'male' ? 'Male' : playerGenderKey === 'female' ? 'Female' : 'Unknown';
+      const combinedPlayers = [...existingPlayers, player];
+      const combinedGenders = combinedPlayers.map(getPlayerGenderKey);
+
+      if (courtGenderSetting === 'Male' && playerGenderKey !== 'male') {
+        return { ok: false, message: `${court.name} is set to Male only.` };
+      }
+
+      if (courtGenderSetting === 'Female' && playerGenderKey !== 'female') {
+        return { ok: false, message: `${court.name} is set to Female only.` };
+      }
+
+      if (courtGenderSetting === 'Mix') {
+        if (playerGenderKey === 'unknown') {
+          return { ok: false, message: 'Mix courts require players with Male or Female gender.' };
+        }
+
+        if (combinedPlayers.length === 4) {
+          const hasMale = combinedGenders.includes('male');
+          const hasFemale = combinedGenders.includes('female');
+          if (!hasMale || !hasFemale) {
+            return { ok: false, message: 'Mix courts must include both Male and Female players.' };
+          }
+        }
+      }
+
+      if ((courtGenderSetting === 'Male' || courtGenderSetting === 'Female') && combinedGenders.some(gender => gender === 'unknown')) {
+        return { ok: false, message: `${court.name} is set to ${courtGenderSetting} and does not allow unknown gender.` };
+      }
+
+      if ((courtGenderSetting === 'Male' && combinedGenders.some(gender => gender !== 'male')) || (courtGenderSetting === 'Female' && combinedGenders.some(gender => gender !== 'female'))) {
+        return { ok: false, message: `${court.name} is set to ${courtGenderSetting} only.` };
+      }
+
+      if (playerGenderLabel === 'Unknown' && courtGenderSetting !== 'Mix') {
+        return { ok: false, message: `${court.name} requires ${courtGenderSetting} players.` };
+      }
+
+      return { ok: true };
+    }
+
+    function shuffleArray(values) {
+      const copy = [...values];
+      for (let index = copy.length - 1; index > 0; index--) {
+        const randomIndex = Math.floor(Math.random() * (index + 1));
+        [copy[index], copy[randomIndex]] = [copy[randomIndex], copy[index]];
+      }
+      return copy;
+    }
+
+    function splitRecentlyFinishedPlayers(players) {
+      const freshPlayers = [];
+      const recentlyFinishedPlayers = [];
+
+      players.forEach(player => {
+        const recentlyFinishedAt = Number(player?.recentlyFinishedAt);
+        if (Number.isFinite(recentlyFinishedAt) && recentlyFinishedAt > 0) {
+          recentlyFinishedPlayers.push(player);
+          return;
+        }
+
+        freshPlayers.push(player);
+      });
+
+      return { freshPlayers, recentlyFinishedPlayers };
+    }
+
+    function selectAutoQueuePlayersForCourt(categoryPlayers, court) {
+      const courtGenderSetting = normalizeCourtGenderSetting(court.genderSetting);
+      const { freshPlayers } = splitRecentlyFinishedPlayers(categoryPlayers);
+      const candidatePlayers = freshPlayers.length > 0 ? freshPlayers : categoryPlayers;
+
+      if (courtGenderSetting === 'Male' || courtGenderSetting === 'Female') {
+        const requiredGender = courtGenderSetting.toLowerCase();
+        const eligiblePlayers = candidatePlayers.filter(player => getPlayerGenderKey(player) === requiredGender);
+        return eligiblePlayers.length >= 4 ? eligiblePlayers.slice(0, 4) : [];
+      }
+
+      const mixEligiblePlayers = candidatePlayers.filter(player => {
+        const genderKey = getPlayerGenderKey(player);
+        return genderKey === 'male' || genderKey === 'female';
+      });
+
+      if (mixEligiblePlayers.length < 4) return [];
+
+      const malePlayers = mixEligiblePlayers.filter(player => getPlayerGenderKey(player) === 'male');
+      const femalePlayers = mixEligiblePlayers.filter(player => getPlayerGenderKey(player) === 'female');
+      if (malePlayers.length === 0 || femalePlayers.length === 0) return [];
+
+      const selectedPlayers = [malePlayers[0], femalePlayers[0]];
+      const selectedIds = new Set(selectedPlayers.map(player => String(player.id)));
+
+      for (const player of mixEligiblePlayers) {
+        if (selectedPlayers.length >= 4) break;
+        const playerId = String(player.id);
+        if (selectedIds.has(playerId)) continue;
+        selectedPlayers.push(player);
+        selectedIds.add(playerId);
+      }
+
+      if (selectedPlayers.length < 4) return [];
+
+      const hasMale = selectedPlayers.some(player => getPlayerGenderKey(player) === 'male');
+      const hasFemale = selectedPlayers.some(player => getPlayerGenderKey(player) === 'female');
+      return hasMale && hasFemale ? selectedPlayers : [];
     }
 
     function getGamesPlayedByPlayerName() {
@@ -874,12 +1075,15 @@
         const categoryValue = rawCategoryValue.toLowerCase() === 'customized categorize' && customCategoryValue
           ? customCategoryValue
           : rawCategoryValue;
+        const playerGender = normalizePlayerGenderValue(player.gender);
         const playerStatus = normalizePlayerStatusValue(player.playerStatus);
         const gamesPlayed = gamesPlayedByPlayerName[normalizePlayerNameKey(player.name)] || 0;
         const isPlayerInactive = playerStatus === 'Inactive';
-        const playerStatusBadgeClass = playerStatus === 'Active'
-          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-          : 'bg-rose-50 text-rose-700 border-rose-200';
+        const genderIconHtml = playerGender === 'Male'
+          ? '<span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 border border-blue-200" title="Male"><svg class="w-4 h-4 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="3"></circle><path d="M12 8v8"></path><path d="M8 11v5"></path><path d="M16 11v5"></path><path d="M10 21v-5"></path><path d="M14 21v-5"></path></svg></span>'
+          : playerGender === 'Female'
+            ? '<span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-pink-50 border border-pink-200" title="Female"><svg class="w-4 h-4 text-pink-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="3"></circle><path d="M12 8l-4 8h8l-4-8z"></path><path d="M10 21v-5"></path><path d="M14 21v-5"></path></svg></span>'
+            : '<span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 border border-slate-200" title="Unknown"><svg class="w-4 h-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="3"></circle><path d="M12 8v6"></path><path d="M9 14h6"></path></svg></span>';
         const playerTeam = isAssigned && player.team ? player.team : '—';
         const courtLabel = isAssigned && player.assignedCourt ? `Court ${player.assignedCourt}` : '—';
 
@@ -896,7 +1100,16 @@
             : `<span class="inline-flex items-center gap-1.5 text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 text-xs font-semibold"><span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>Waiting</span>`;
 
         const courtOptions = appState.coords.map(c =>
-          `<option value="${c.id}" ${(c.players.length >= 4) ? 'disabled' : ''}>${c.name} (${c.players.length}/4)</option>`
+          (() => {
+            const assignedCategories = Array.isArray(c.assignedCategories)
+              ? c.assignedCategories.map(category => String(category || '').trim()).filter(Boolean)
+              : [];
+            const isCourtFull = c.players.length >= 4;
+            const hasCourtCategory = assignedCategories.length > 0;
+            const isDisabled = isCourtFull || !hasCourtCategory;
+            const categorySuffix = hasCourtCategory ? '' : ' • No Category Set';
+            return `<option value="${c.id}" ${isDisabled ? 'disabled' : ''}>${c.name} (${c.players.length}/4)${categorySuffix}</option>`;
+          })()
         ).join('');
 
         const row = `
@@ -904,8 +1117,8 @@
             <td class="px-6 py-4 text-slate-700 font-semibold">${player.queueNumber || '—'}</td>
                 <td class="px-6 py-4">
                     <div class="inline-flex items-center gap-1.5 max-w-full">
+                      ${genderIconHtml}
                       <div class="font-bold text-slate-900">${player.name}</div>
-                      <span class="px-1.5 py-[1px] text-[9px] font-semibold rounded-full border leading-none ${playerStatusBadgeClass}">${playerStatus}</span>
                     </div>
                 </td>
                 <td class="px-6 py-4 text-slate-600 font-medium">
@@ -928,7 +1141,7 @@
                   <div class="flex items-center justify-end gap-2 isolate">
                     ${!isAssigned ? `
                       <div class="relative">
-                        <select onchange="handleAssignSelection('${playerIdSafe}', this.value); this.selectedIndex=0;" class="appearance-none bg-white hover:bg-slate-50 border border-slate-300 text-brand-blue text-xs font-bold py-1.5 pl-3 pr-8 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue cursor-pointer transition shadow-sm z-10 relative pr-0" style="padding-right: 2rem;">
+                        <select onchange="handleAssignSelection('${playerIdSafe}', this.value); this.selectedIndex=0;" class="w-24 appearance-none bg-white hover:bg-slate-50 border border-slate-300 text-brand-blue text-xs font-bold py-1.5 pl-3 pr-8 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue cursor-pointer transition shadow-sm z-10 relative pr-0" style="padding-right: 2rem;">
                           <option value="" disabled selected>Select</option>
                           <option value="${player.autoQueue ? 'auto-queue-unassign' : 'auto-queue'}" ${isPlayerInactive && !player.autoQueue ? 'disabled style="text-decoration: line-through; color:#94a3b8;"' : ''}>${player.autoQueue ? 'Unassign' : 'Auto-Queue'}</option>
                           ${courtOptions}
@@ -972,6 +1185,8 @@
 
       const name = document.getElementById('playerName').value.trim();
       const categorySelect = document.getElementById('playerCategory');
+      const selectedGenderInput = document.querySelector('input[name="playerGender"]:checked');
+      const gender = selectedGenderInput ? selectedGenderInput.value : '';
       const customCategory = document.getElementById('customCategory').value.trim();
       const selectedOption = categorySelect.options[categorySelect.selectedIndex];
       const savedCustomValue = (selectedOption?.dataset?.customValue || '').trim();
@@ -982,7 +1197,7 @@
       const customCategoryValue = isSavedCustomCategory ? savedCustomValue : customCategory;
       const category = isCustomCategory ? 'Customized Categorize' : categoryChoice;
 
-      if (!name || !category || (isCustomCategory && !customCategoryValue)) return;
+      if (!name || !category || !gender || (isCustomCategory && !customCategoryValue)) return;
 
       // Generate unique ID and time
       const id = Date.now().toString().slice(-6);
@@ -995,6 +1210,7 @@
         name,
         category,
         customCategoryValue: isCustomCategory ? customCategoryValue : null,
+        gender,
         playerStatus: 'Active',
         gamesPlayed: 0,
         team: null,
@@ -1135,14 +1351,17 @@
     }
 
     function processAutoQueueAssignments(options = {}) {
-      const prioritizeByGamesPlayed = Boolean(options.prioritizeByGamesPlayed);
+      const prioritizeByGamesPlayed = options.prioritizeByGamesPlayed !== false;
       const randomizeTeams = Boolean(options.randomizeTeams);
+      const randomizeCourts = options.randomizeCourts !== false;
       const availableCourts = appState.coords.filter(court => {
         const players = Array.isArray(court.players) ? court.players : [];
         return players.length === 0;
       });
 
-      if (availableCourts.length === 0) return;
+      const courtPool = randomizeCourts ? shuffleArray(availableCourts) : availableCourts;
+
+      if (courtPool.length === 0) return;
 
       const gamesPlayedByPlayerName = prioritizeByGamesPlayed ? getGamesPlayedByPlayerName() : null;
 
@@ -1177,22 +1396,35 @@
       }, {});
 
       Object.keys(groupedByCategory).forEach(categoryKey => {
-        while (groupedByCategory[categoryKey].length >= 4 && availableCourts.length > 0) {
-          const matchingCourtIndex = availableCourts.findIndex(court => {
+        while (groupedByCategory[categoryKey].length >= 4 && courtPool.length > 0) {
+          const matchingCourtIndex = courtPool.findIndex(court => {
             const assignedCategories = Array.isArray(court.assignedCategories)
               ? court.assignedCategories.map(category => String(category || '').trim().toLowerCase()).filter(Boolean)
               : [];
 
-            if (assignedCategories.length === 0) return true;
-            return assignedCategories.includes(categoryKey);
+            if (assignedCategories.length === 0) return false;
+
+            const hasCategoryMatch = assignedCategories.includes(categoryKey);
+            if (!hasCategoryMatch) return false;
+
+            const eligiblePlayers = selectAutoQueuePlayersForCourt(groupedByCategory[categoryKey], court);
+            return eligiblePlayers.length === 4;
           });
 
           if (matchingCourtIndex === -1) {
             break;
           }
 
-          const [court] = availableCourts.splice(matchingCourtIndex, 1);
-          const playersForCourt = groupedByCategory[categoryKey].splice(0, 4);
+          const [court] = courtPool.splice(matchingCourtIndex, 1);
+          const selectedPlayers = selectAutoQueuePlayersForCourt(groupedByCategory[categoryKey], court);
+          if (selectedPlayers.length < 4) {
+            break;
+          }
+
+          const selectedIds = new Set(selectedPlayers.map(player => String(player.id)));
+          groupedByCategory[categoryKey] = groupedByCategory[categoryKey].filter(player => !selectedIds.has(String(player.id)));
+
+          const playersForCourt = selectedPlayers;
           const teamAssignmentOrder = [...playersForCourt];
 
           if (randomizeTeams) {
@@ -1211,6 +1443,7 @@
             appState.queue[queueIndex].assignedCourt = court.id;
             appState.queue[queueIndex].team = team;
             appState.queue[queueIndex].autoQueue = false;
+            appState.queue[queueIndex].recentlyFinishedAt = null;
             court.players.push(appState.queue[queueIndex]);
           });
 
@@ -1247,11 +1480,18 @@
       if (!courtId) return;
 
       const parsedCourtId = parseInt(courtId, 10);
+      const player = appState.queue.find(queuePlayer => queuePlayer.id == playerId);
       const court = appState.coords.find(c => c.id === parsedCourtId);
-      if (!court) return;
+      if (!court || !player) return;
 
       if (court.players.length >= 4) {
         showToast(`${court.name} is full (Max 4 players).`, 'error');
+        return;
+      }
+
+      const eligibilityCheck = canAssignPlayerToCourt(player, court);
+      if (!eligibilityCheck.ok) {
+        showToast(eligibilityCheck.message, 'error');
         return;
       }
 
@@ -1316,6 +1556,12 @@
         return false;
       }
 
+      const eligibilityCheck = canAssignPlayerToCourt(appState.queue[playerIndex], court);
+      if (!eligibilityCheck.ok) {
+        showToast(eligibilityCheck.message, 'error');
+        return false;
+      }
+
       const teamCount = court.players.filter(p => (p.team || 'Unassigned') === selectedTeam).length;
       if (teamCount >= 2) {
         showToast(`${selectedTeam} is already full on ${court.name}.`, 'error');
@@ -1327,6 +1573,7 @@
       appState.queue[playerIndex].assignedCourt = courtId;
       appState.queue[playerIndex].team = selectedTeam;
       appState.queue[playerIndex].autoQueue = false;
+      appState.queue[playerIndex].recentlyFinishedAt = null;
 
       // Update court state
       court.players.push(appState.queue[playerIndex]);
@@ -1465,6 +1712,7 @@
       const categoryValue = rawCategoryValue.toLowerCase() === 'customized categorize' && customCategoryValue
         ? customCategoryValue
         : rawCategoryValue;
+      const genderValue = normalizePlayerGenderValue(player.gender);
       const playerStatusValue = normalizePlayerStatusValue(player.playerStatus);
       const statusValue = player.status === 'Assigned' ? 'Assigned' : (player.autoQueue ? 'Auto-Queue' : 'Waiting');
       const courtValue = player.assignedCourt ? `Court ${player.assignedCourt}` : '—';
@@ -1476,6 +1724,7 @@
         <div class="flex justify-between"><span class="font-semibold text-slate-500">Queue #</span><span class="font-semibold text-slate-900">${player.queueNumber || '—'}</span></div>
         <div class="flex justify-between"><span class="font-semibold text-slate-500">Time Registered</span><span class="font-semibold text-slate-900">${player.timeRegistered || '—'}</span></div>
         <div class="flex justify-between"><span class="font-semibold text-slate-500">Player Name</span><span class="font-semibold text-slate-900">${player.name || '—'}</span></div>
+        <div class="flex justify-between"><span class="font-semibold text-slate-500">Gender</span><span class="font-semibold text-slate-900">${genderValue}</span></div>
         <div class="flex justify-between"><span class="font-semibold text-slate-500">Category</span><span class="font-semibold text-slate-900">${categoryValue || '—'}</span></div>
         <div class="flex justify-between items-center gap-3">
           <span class="font-semibold text-slate-500">Player Status</span>

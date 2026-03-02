@@ -232,6 +232,27 @@
                   <span class="text-sm text-slate-600">Waiting in Queue</span>
                   <span id="stat-waiting-queue" class="text-2xl font-bold text-slate-900">0</span>
                 </li>
+                <li class="pt-4 pb-2">
+                  <span class="text-xs font-bold uppercase tracking-wider text-slate-500">PLAYER CATEGORIES</span>
+                </li>
+                <li class="py-3 flex items-center justify-between gap-3">
+                  <span class="text-sm text-slate-600">Beginner</span>
+                  <span id="stat-beginner-players" class="text-2xl font-bold text-slate-900">0</span>
+                </li>
+                <li class="py-3 flex items-center justify-between gap-3">
+                  <span class="text-sm text-slate-600">Intermediate</span>
+                  <span id="stat-intermediate-players" class="text-2xl font-bold text-slate-900">0</span>
+                </li>
+                <li class="py-3 flex items-center justify-between gap-3">
+                  <span class="text-sm text-slate-600">Novice</span>
+                  <span id="stat-novice-players" class="text-2xl font-bold text-slate-900">0</span>
+                </li>
+                <li class="py-3">
+                  <div class="flex items-center justify-between gap-3 mb-2">
+                    <span class="text-sm text-slate-600">Customized Categories</span>
+                  </div>
+                  <div id="stat-custom-category-list" class="space-y-1.5"></div>
+                </li>
               </ul>
             </section>
 
@@ -390,6 +411,41 @@
       const gameLogs = getGameLogs();
       const finishedGames = gameLogs.length;
 
+      const categoryCounts = {
+        beginner: 0,
+        intermediate: 0,
+        novice: 0,
+        custom: {}
+      };
+
+      queue.forEach(player => {
+        const rawCategory = String(player.category || '').trim();
+        const normalizedCategory = rawCategory.toLowerCase();
+        const customCategoryValue = String(player.customCategoryValue || '').trim();
+
+        if (normalizedCategory === 'beginner') {
+          categoryCounts.beginner += 1;
+          return;
+        }
+
+        if (normalizedCategory === 'intermediate') {
+          categoryCounts.intermediate += 1;
+          return;
+        }
+
+        if (normalizedCategory === 'novice') {
+          categoryCounts.novice += 1;
+          return;
+        }
+
+        const customCategory = normalizedCategory === 'customized categorize'
+          ? customCategoryValue
+          : rawCategory;
+
+        if (!customCategory) return;
+        categoryCounts.custom[customCategory] = (categoryCounts.custom[customCategory] || 0) + 1;
+      });
+
       (state.coords || []).forEach(c => {
         if (c.status === 'available') availableCourts++;
         if ((Array.isArray(c.players) && c.players.length > 0) || c.status === 'occupied') {
@@ -404,6 +460,26 @@
       document.getElementById('stat-waiting-queue').innerText = waiting;
       document.getElementById('stat-occupied-courts').innerText = occupiedCourts;
       document.getElementById('stat-finished-games').innerText = finishedGames;
+      document.getElementById('stat-beginner-players').innerText = categoryCounts.beginner;
+      document.getElementById('stat-intermediate-players').innerText = categoryCounts.intermediate;
+      document.getElementById('stat-novice-players').innerText = categoryCounts.novice;
+
+      const customCategoryList = document.getElementById('stat-custom-category-list');
+      if (customCategoryList) {
+        const customEntries = Object.entries(categoryCounts.custom)
+          .sort((a, b) => a[0].localeCompare(b[0], undefined, { sensitivity: 'base' }));
+
+        if (customEntries.length === 0) {
+          customCategoryList.innerHTML = '<div class="text-sm text-slate-400">None</div>';
+        } else {
+          customCategoryList.innerHTML = customEntries.map(([categoryName, count]) => `
+            <div class="flex items-center justify-between gap-3">
+              <span class="text-sm text-slate-600">${categoryName}</span>
+              <span class="text-lg font-bold text-slate-900">${count}</span>
+            </div>
+          `).join('');
+        }
+      }
     }
 
     // -------------------------------------------------------------

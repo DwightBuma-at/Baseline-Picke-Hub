@@ -303,7 +303,7 @@
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
     <div class="bg-white w-full max-w-md rounded-2xl border border-slate-200 shadow-2xl overflow-hidden">
       <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-        <h3 id="assign-category-title" class="text-lg font-bold text-slate-900">Assign Category</h3>
+        <h3 id="assign-category-title" class="text-lg font-bold text-slate-900">Court Settings</h3>
         <button onclick="closeAssignCategoryModal()"
           class="text-slate-400 hover:text-slate-700 transition-colors p-1 rounded-md hover:bg-slate-200" title="Close">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -314,6 +314,22 @@
       <div class="p-6">
         <p class="text-sm text-slate-500 mb-4">Select categories and click Approve.</p>
         <div id="assign-category-options" class="space-y-2 max-h-64 overflow-y-auto"></div>
+        <div class="mt-5">
+          <label for="court-gender-setting" class="block text-sm font-semibold text-slate-700 mb-1.5">Gender Setting</label>
+          <div class="relative">
+            <select id="court-gender-setting"
+              class="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-900 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-colors appearance-none cursor-pointer">
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Mix" selected>Mix</option>
+            </select>
+            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-3">
         <button type="button" onclick="closeAssignCategoryModal()"
@@ -330,14 +346,21 @@
 
   <!-- Application Logic -->
   <script>
+    function normalizeCourtGenderSetting(rawValue) {
+      const normalized = String(rawValue || '').trim().toLowerCase();
+      if (normalized === 'male') return 'Male';
+      if (normalized === 'female') return 'Female';
+      return 'Mix';
+    }
+
     function getSystemState() {
       const defaultState = {
         coords: [
-          { id: 1, name: 'Court 1', status: 'available', players: [], assignedCategories: [] },
-          { id: 2, name: 'Court 2', status: 'available', players: [], assignedCategories: [] },
-          { id: 3, name: 'Court 3', status: 'available', players: [], assignedCategories: [] },
-          { id: 4, name: 'Court 4', status: 'available', players: [], assignedCategories: [] },
-          { id: 5, name: 'Court 5', status: 'available', players: [], assignedCategories: [] }
+          { id: 1, name: 'Court 1', status: 'available', players: [], assignedCategories: [], genderSetting: 'Mix' },
+          { id: 2, name: 'Court 2', status: 'available', players: [], assignedCategories: [], genderSetting: 'Mix' },
+          { id: 3, name: 'Court 3', status: 'available', players: [], assignedCategories: [], genderSetting: 'Mix' },
+          { id: 4, name: 'Court 4', status: 'available', players: [], assignedCategories: [], genderSetting: 'Mix' },
+          { id: 5, name: 'Court 5', status: 'available', players: [], assignedCategories: [], genderSetting: 'Mix' }
         ],
         queue: []
       };
@@ -354,7 +377,8 @@
                 ...defaultCourt,
                 ...existingCourt,
                 players: Array.isArray(existingCourt.players) ? existingCourt.players : [],
-                assignedCategories: Array.isArray(existingCourt.assignedCategories) ? existingCourt.assignedCategories : []
+                assignedCategories: Array.isArray(existingCourt.assignedCategories) ? existingCourt.assignedCategories : [],
+                genderSetting: normalizeCourtGenderSetting(existingCourt.genderSetting)
               }
             : defaultCourt;
         });
@@ -454,6 +478,7 @@
             : `<span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700">Occupied</span>`;
 
         const assignedCategories = Array.isArray(court.assignedCategories) ? court.assignedCategories : [];
+        const courtGenderSetting = normalizeCourtGenderSetting(court.genderSetting);
         const categoryTags = assignedCategories.length > 0
           ? assignedCategories.map(category => `<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-brand-blue border border-blue-100">${escapeHtml(category)}</span>`).join('')
           : '<span class="text-xs text-slate-400">No category assigned</span>';
@@ -474,8 +499,11 @@
                   </div>
                 </div>
                 <div class="mt-3 flex items-center justify-between gap-3">
-                  <div class="flex flex-wrap items-center gap-2">${categoryTags}</div>
-                  <button ${hasPlayersInCourt ? 'disabled' : ''} onclick="openAssignCategoryModal(${court.id}, event)" class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 transition-colors shrink-0 ${hasPlayersInCourt ? 'opacity-50 cursor-not-allowed hover:bg-white' : ''}" title="${hasPlayersInCourt ? 'Cannot edit category while players are on the court' : 'Assign Category'}">Assign Category</button>
+                  <div class="flex flex-wrap items-center gap-2">
+                    ${categoryTags}
+                    <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-violet-50 text-violet-700 border border-violet-100">${escapeHtml(courtGenderSetting)}</span>
+                  </div>
+                  <button ${hasPlayersInCourt ? 'disabled' : ''} onclick="openAssignCategoryModal(${court.id}, event)" class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 transition-colors shrink-0 ${hasPlayersInCourt ? 'opacity-50 cursor-not-allowed hover:bg-white' : ''}" title="${hasPlayersInCourt ? 'Cannot edit settings while players are on the court' : 'Court Settings'}">Court Settings</button>
                 </div>
               </div>
             </div>
@@ -530,7 +558,7 @@
       const optionsWrap = document.getElementById('assign-category-options');
       if (!title || !optionsWrap) return;
 
-      title.innerText = `Assign Category • ${court.name}`;
+      title.innerText = `Court Settings • ${court.name}`;
 
       const availableCategories = getAvailableCategoryOptions();
       const selectedCategories = new Set(Array.isArray(court.assignedCategories) ? court.assignedCategories : []);
@@ -541,6 +569,11 @@
           <span class="text-sm text-slate-700 font-medium">${escapeHtml(category)}</span>
         </label>
       `).join('');
+
+      const genderSettingInput = document.getElementById('court-gender-setting');
+      if (genderSettingInput) {
+        genderSettingInput.value = normalizeCourtGenderSetting(court.genderSetting);
+      }
 
       const modal = document.getElementById('assign-category-modal');
       if (!modal) return;
@@ -573,8 +606,10 @@
       const checkedValues = Array.from(document.querySelectorAll('.court-category-checkbox:checked'))
         .map(input => String(input.value || '').trim())
         .filter(Boolean);
+      const genderSettingValue = normalizeCourtGenderSetting(document.getElementById('court-gender-setting')?.value);
 
       court.assignedCategories = checkedValues;
+      court.genderSetting = genderSettingValue;
       saveSystemState(appState);
       renderCourts();
       closeAssignCategoryModal();
@@ -728,14 +763,22 @@
       saveGameLogs(logs);
 
       const finishedPlayerIds = new Set(court.players.map(player => String(player.id)));
+      let currentMaxQueueNumber = appState.queue.reduce((maxValue, queuePlayer) => {
+        const queueNumber = Number(queuePlayer.queueNumber);
+        return Number.isFinite(queueNumber) && queueNumber > 0 ? Math.max(maxValue, queueNumber) : maxValue;
+      }, 0);
+
       appState.queue.forEach(queuePlayer => {
         if (finishedPlayerIds.has(String(queuePlayer.id))) {
           const currentGamesPlayed = Number(queuePlayer.gamesPlayed);
           queuePlayer.gamesPlayed = Number.isFinite(currentGamesPlayed) ? currentGamesPlayed + 1 : 1;
+          queuePlayer.recentlyFinishedAt = Date.now();
           queuePlayer.status = 'Waiting';
           queuePlayer.assignedCourt = null;
           queuePlayer.team = null;
           queuePlayer.autoQueue = false;
+          currentMaxQueueNumber += 1;
+          queuePlayer.queueNumber = currentMaxQueueNumber;
         }
       });
 
