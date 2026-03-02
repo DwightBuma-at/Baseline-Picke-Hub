@@ -216,6 +216,10 @@
                   class="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-brand-blue focus:border-brand-blue text-sm"
                   placeholder="Search queue...">
               </div>
+              <button onclick="openAutoAssignModal()"
+                class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold rounded-lg border border-slate-300 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-brand-blue whitespace-nowrap">
+                Auto Assign
+              </button>
               <button onclick="openModal()"
                 class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-brand-blue hover:bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-brand-blue border border-transparent whitespace-nowrap">
                 Register Player
@@ -231,6 +235,7 @@
                     <th scope="col" class="px-6 py-4 font-semibold text-xs">Queue #</th>
                     <th scope="col" class="px-6 py-4 font-semibold text-xs">Player Name</th>
                     <th scope="col" class="px-6 py-4 font-semibold text-xs">Category</th>
+                    <th scope="col" class="px-6 py-4 font-semibold text-xs text-center">Games Played</th>
                     <th scope="col" class="px-6 py-4 font-semibold text-xs">Status</th>
                     <th scope="col" class="px-6 py-4 font-semibold text-xs">Court</th>
                     <th scope="col" class="px-6 py-4 font-semibold text-xs text-center">Team</th>
@@ -467,6 +472,25 @@
     </div>
   </div>
 
+  <!-- Auto Assign Confirmation Modal -->
+  <div id="auto-assign-modal"
+    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
+    <div class="bg-white w-full max-w-sm rounded-2xl border border-slate-200 shadow-2xl p-6">
+      <h3 class="text-lg font-bold text-slate-900">Confirm Auto Assign</h3>
+      <p class="mt-2 text-sm text-slate-600">Auto-Assign eligible waiting players now?</p>
+      <div class="mt-6 flex items-center justify-end gap-3">
+        <button type="button" onclick="closeAutoAssignModal()"
+          class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors">
+          Cancel
+        </button>
+        <button type="button" onclick="confirmAutoAssign()"
+          class="px-4 py-2 text-sm font-semibold text-white bg-brand-blue hover:bg-blue-600 rounded-lg transition-colors">
+          Confirm
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Player Details Modal -->
   <div id="player-details-modal"
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
@@ -551,6 +575,41 @@
       localStorage.setItem('baseline_state', JSON.stringify(state));
     }
 
+    function getGameLogs() {
+      const logsRaw = localStorage.getItem('baseline_game_logs');
+      if (!logsRaw) return [];
+
+      try {
+        const parsedLogs = JSON.parse(logsRaw);
+        return Array.isArray(parsedLogs) ? parsedLogs : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function normalizePlayerNameKey(name) {
+      return String(name || '').trim().toLowerCase();
+    }
+
+    function getGamesPlayedByPlayerName() {
+      const gamesPlayedByPlayerName = {};
+      const gameLogs = getGameLogs();
+
+      gameLogs.forEach(logEntry => {
+        const participants = [
+          ...(Array.isArray(logEntry?.teamA) ? logEntry.teamA : []),
+          ...(Array.isArray(logEntry?.teamB) ? logEntry.teamB : [])
+        ];
+
+        const uniqueParticipants = new Set(participants.map(normalizePlayerNameKey).filter(Boolean));
+        uniqueParticipants.forEach(nameKey => {
+          gamesPlayedByPlayerName[nameKey] = (gamesPlayedByPlayerName[nameKey] || 0) + 1;
+        });
+      });
+
+      return gamesPlayedByPlayerName;
+    }
+
     function normalizeQueueNumbers(state) {
       if (!Array.isArray(state.queue)) return false;
 
@@ -621,6 +680,11 @@
             saveSystemState(appState);
           }
           renderQueue();
+          return;
+        }
+
+        if (e.key === 'baseline_game_logs') {
+          renderQueue();
         }
       });
 
@@ -639,6 +703,12 @@
       document.getElementById('delete-player-modal').addEventListener('click', function (e) {
         if (e.target === this) {
           closeDeletePlayerModal();
+        }
+      });
+
+      document.getElementById('auto-assign-modal').addEventListener('click', function (e) {
+        if (e.target === this) {
+          closeAutoAssignModal();
         }
       });
 
@@ -661,6 +731,7 @@
       const paginationInfo = document.getElementById('queue-pagination-info');
       const searchInput = document.getElementById('queue-search');
       const searchValue = (searchInput?.value || '').trim().toLowerCase();
+      const gamesPlayedByPlayerName = getGamesPlayedByPlayerName();
 
       tbody.innerHTML = '';
 
@@ -705,6 +776,7 @@
           ? 'assigned'
           : (player.autoQueue ? 'auto-queue' : 'waiting');
         const playerStatusValue = normalizePlayerStatusValue(player.playerStatus).toLowerCase();
+        const gamesPlayedValue = gamesPlayedByPlayerName[normalizePlayerNameKey(player.name)] || 0;
         const courtValue = player.assignedCourt ? `court ${player.assignedCourt}` : '';
         const teamValue = player.team || '';
 
@@ -714,6 +786,7 @@
           String(player.name || ''),
           categoryValue,
           playerStatusValue,
+          String(gamesPlayedValue),
           statusValue,
           courtValue,
           teamValue
@@ -733,7 +806,7 @@
         emptyState.classList.add('hidden');
         emptyState.classList.remove('flex');
         pagination.classList.add('hidden');
-        tbody.innerHTML = `<tr><td colspan="8" class="px-6 py-8 text-center text-slate-500">No matching players found.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="px-6 py-8 text-center text-slate-500">No matching players found.</td></tr>`;
         return;
       }
 
@@ -748,6 +821,7 @@
           ? customCategoryValue
           : rawCategoryValue;
         const playerStatus = normalizePlayerStatusValue(player.playerStatus);
+        const gamesPlayed = gamesPlayedByPlayerName[normalizePlayerNameKey(player.name)] || 0;
         const isPlayerInactive = playerStatus === 'Inactive';
         const playerStatusBadgeClass = playerStatus === 'Active'
           ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
@@ -790,6 +864,7 @@
                     </button>
                   </div>
                 </td>
+                <td class="px-6 py-4 text-center text-slate-700 font-semibold">${gamesPlayed}</td>
                 <td class="px-6 py-4">${statusHtml}</td>
             <td class="px-6 py-4 text-slate-600 font-medium">${courtLabel}</td>
             <td class="px-6 py-4 text-center">
@@ -801,7 +876,7 @@
                       <div class="relative">
                         <select onchange="handleAssignSelection('${playerIdSafe}', this.value); this.selectedIndex=0;" class="appearance-none bg-white hover:bg-slate-50 border border-slate-300 text-brand-blue text-xs font-bold py-1.5 pl-3 pr-8 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue cursor-pointer transition shadow-sm z-10 relative pr-0" style="padding-right: 2rem;">
                           <option value="" disabled selected>Assign</option>
-                          <option value="auto-queue" ${isPlayerInactive ? 'disabled style="text-decoration: line-through; color:#94a3b8;"' : ''}>Auto-Queue</option>
+                          <option value="${player.autoQueue ? 'auto-queue-unassign' : 'auto-queue'}" ${isPlayerInactive && !player.autoQueue ? 'disabled style="text-decoration: line-through; color:#94a3b8;"' : ''}>${player.autoQueue ? 'Unassign' : 'Auto-Queue'}</option>
                           ${courtOptions}
                         </select>
                         <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-brand-blue z-20">
@@ -867,6 +942,7 @@
         category,
         customCategoryValue: isCustomCategory ? customCategoryValue : null,
         playerStatus: 'Active',
+        gamesPlayed: 0,
         team: null,
         createdAt,
         queueNumber: getNextQueueNumber(),
@@ -891,6 +967,11 @@
 
       const player = appState.queue.find(queuePlayer => queuePlayer.id == playerId);
       if (!player) return;
+
+      if (selectedValue === 'auto-queue-unassign') {
+        unsetPlayerAutoQueue(playerId);
+        return;
+      }
 
       const playerStatus = normalizePlayerStatusValue(player.playerStatus);
       if (selectedValue === 'auto-queue' && playerStatus === 'Inactive') {
@@ -932,7 +1013,75 @@
       showToast(`${player.name} added to Auto-Queue.`, 'success');
     }
 
-    function processAutoQueueAssignments() {
+    function unsetPlayerAutoQueue(playerId) {
+      const playerIndex = appState.queue.findIndex(player => player.id == playerId);
+      if (playerIndex === -1) return;
+
+      const player = appState.queue[playerIndex];
+      if (!player.autoQueue) return;
+
+      player.status = 'Waiting';
+      player.assignedCourt = null;
+      player.team = null;
+      player.autoQueue = false;
+
+      saveSystemState(appState);
+      renderQueue();
+      showToast(`${player.name} removed from Auto-Queue.`, 'success');
+    }
+
+    function autoAssignQueuedPlayers() {
+      const eligiblePlayers = appState.queue.filter(player =>
+        player.status === 'Waiting' && normalizePlayerStatusValue(player.playerStatus) !== 'Inactive'
+      );
+
+      if (eligiblePlayers.length === 0) {
+        showToast('No eligible waiting players for Auto Assign.', 'error');
+        return;
+      }
+
+      eligiblePlayers.forEach(player => {
+        player.status = 'Waiting';
+        player.assignedCourt = null;
+        player.team = null;
+        player.autoQueue = true;
+      });
+
+      processAutoQueueAssignments({ prioritizeByGamesPlayed: true });
+      saveSystemState(appState);
+      renderQueue();
+      showToast('Auto Assign processed for queued players.', 'success');
+    }
+
+    function openAutoAssignModal() {
+      const modal = document.getElementById('auto-assign-modal');
+      if (!modal) return;
+
+      modal.classList.remove('hidden');
+      requestAnimationFrame(() => {
+        modal.classList.remove('opacity-0');
+        modal.classList.add('opacity-100');
+      });
+    }
+
+    function closeAutoAssignModal() {
+      const modal = document.getElementById('auto-assign-modal');
+      if (!modal) return;
+
+      modal.classList.remove('opacity-100');
+      modal.classList.add('opacity-0');
+      setTimeout(() => {
+        modal.classList.add('hidden');
+      }, 200);
+    }
+
+    function confirmAutoAssign() {
+      closeAutoAssignModal();
+      autoAssignQueuedPlayers();
+    }
+
+    function processAutoQueueAssignments(options = {}) {
+      const prioritizeByGamesPlayed = Boolean(options.prioritizeByGamesPlayed);
       const availableCourts = appState.coords.filter(court => {
         const players = Array.isArray(court.players) ? court.players : [];
         return players.length === 0;
@@ -940,9 +1089,19 @@
 
       if (availableCourts.length === 0) return;
 
+      const gamesPlayedByPlayerName = prioritizeByGamesPlayed ? getGamesPlayedByPlayerName() : null;
+
       const autoQueuedPlayers = [...appState.queue]
         .filter(player => player.status === 'Waiting' && player.autoQueue)
         .sort((a, b) => {
+          if (prioritizeByGamesPlayed && gamesPlayedByPlayerName) {
+            const aGamesPlayed = gamesPlayedByPlayerName[normalizePlayerNameKey(a.name)] || 0;
+            const bGamesPlayed = gamesPlayedByPlayerName[normalizePlayerNameKey(b.name)] || 0;
+            if (aGamesPlayed !== bGamesPlayed) {
+              return aGamesPlayed - bGamesPlayed;
+            }
+          }
+
           const aQueueNumber = Number(a.queueNumber);
           const bQueueNumber = Number(b.queueNumber);
           const aHasQueueNumber = Number.isFinite(aQueueNumber) && aQueueNumber > 0;

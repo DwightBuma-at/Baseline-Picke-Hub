@@ -587,6 +587,8 @@
       const finishedPlayerIds = new Set(court.players.map(player => String(player.id)));
       appState.queue.forEach(queuePlayer => {
         if (finishedPlayerIds.has(String(queuePlayer.id))) {
+          const currentGamesPlayed = Number(queuePlayer.gamesPlayed);
+          queuePlayer.gamesPlayed = Number.isFinite(currentGamesPlayed) ? currentGamesPlayed + 1 : 1;
           queuePlayer.status = 'Waiting';
           queuePlayer.assignedCourt = null;
           queuePlayer.team = null;
