@@ -216,6 +216,22 @@
                   class="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-brand-blue focus:border-brand-blue text-sm"
                   placeholder="Search queue...">
               </div>
+              <div class="relative flex-1 md:flex-none md:w-44">
+                <select id="queue-sort"
+                  class="w-full appearance-none bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue pr-8">
+                  <option value="queue-number" selected>Queue Number</option>
+                  <option value="alphabetical">Alphabetical</option>
+                  <option value="most-played">Most Played</option>
+                  <option value="least-played">Least Played</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
+                  <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                  </svg>
+                </div>
+              </div>
               <button onclick="openAutoAssignModal()"
                 class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold rounded-lg border border-slate-300 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-brand-blue whitespace-nowrap">
                 Auto Assign
@@ -670,6 +686,11 @@
         renderQueue();
       });
 
+      document.getElementById('queue-sort')?.addEventListener('change', () => {
+        queueCurrentPage = 1;
+        renderQueue();
+      });
+
       document.getElementById('registerForm').addEventListener('submit', handleRegisterPlayer);
 
       // Listen for cross-tab updates (e.g. if a court is cleared on dashboard)
@@ -730,8 +751,25 @@
       const pagination = document.getElementById('queue-pagination');
       const paginationInfo = document.getElementById('queue-pagination-info');
       const searchInput = document.getElementById('queue-search');
+      const sortSelect = document.getElementById('queue-sort');
       const searchValue = (searchInput?.value || '').trim().toLowerCase();
+      const sortValue = sortSelect?.value || 'queue-number';
       const gamesPlayedByPlayerName = getGamesPlayedByPlayerName();
+
+      const compareByQueueOrder = (a, b) => {
+        const aQueueNumber = Number(a.queueNumber);
+        const bQueueNumber = Number(b.queueNumber);
+        const aHasQueueNumber = Number.isFinite(aQueueNumber) && aQueueNumber > 0;
+        const bHasQueueNumber = Number.isFinite(bQueueNumber) && bQueueNumber > 0;
+
+        if (aHasQueueNumber && bHasQueueNumber) {
+          return aQueueNumber - bQueueNumber;
+        }
+
+        const aOrder = a.createdAt || Number(a.id) || 0;
+        const bOrder = b.createdAt || Number(b.id) || 0;
+        return aOrder - bOrder;
+      };
 
       tbody.innerHTML = '';
 
@@ -748,20 +786,7 @@
       emptyState.classList.add('hidden');
       emptyState.classList.remove('flex');
 
-      const orderedQueue = [...appState.queue].sort((a, b) => {
-        const aQueueNumber = Number(a.queueNumber);
-        const bQueueNumber = Number(b.queueNumber);
-        const aHasQueueNumber = Number.isFinite(aQueueNumber) && aQueueNumber > 0;
-        const bHasQueueNumber = Number.isFinite(bQueueNumber) && bQueueNumber > 0;
-
-        if (aHasQueueNumber && bHasQueueNumber) {
-          return aQueueNumber - bQueueNumber;
-        }
-
-        const aOrder = a.createdAt || Number(a.id) || 0;
-        const bOrder = b.createdAt || Number(b.id) || 0;
-        return aOrder - bOrder;
-      });
+      const orderedQueue = [...appState.queue].sort(compareByQueueOrder);
 
       const filteredQueue = orderedQueue.filter(player => {
         if (!searchValue) return true;
@@ -793,13 +818,42 @@
         ].some(value => value.toLowerCase().includes(searchValue));
       });
 
-      const totalRows = filteredQueue.length;
+      const statusFilteredQueue = (sortValue === 'active' || sortValue === 'inactive')
+        ? filteredQueue.filter(player => {
+            const playerStatus = normalizePlayerStatusValue(player.playerStatus).toLowerCase();
+            return sortValue === playerStatus;
+          })
+        : filteredQueue;
+
+      const sortedQueue = [...statusFilteredQueue].sort((a, b) => {
+        if (sortValue === 'alphabetical') {
+          const nameCompare = String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
+          return nameCompare !== 0 ? nameCompare : compareByQueueOrder(a, b);
+        }
+
+        if (sortValue === 'most-played' || sortValue === 'least-played') {
+          const aGamesPlayed = gamesPlayedByPlayerName[normalizePlayerNameKey(a.name)] || 0;
+          const bGamesPlayed = gamesPlayedByPlayerName[normalizePlayerNameKey(b.name)] || 0;
+
+          if (aGamesPlayed !== bGamesPlayed) {
+            return sortValue === 'most-played'
+              ? bGamesPlayed - aGamesPlayed
+              : aGamesPlayed - bGamesPlayed;
+          }
+
+          return compareByQueueOrder(a, b);
+        }
+
+        return compareByQueueOrder(a, b);
+      });
+
+      const totalRows = sortedQueue.length;
       const totalPages = 1;
       queueCurrentPage = 1;
 
       const startIndex = 0;
       const endIndex = totalRows;
-      const pagedQueue = filteredQueue;
+      const pagedQueue = sortedQueue;
 
       if (totalRows === 0) {
         tableContainer.classList.remove('hidden');
