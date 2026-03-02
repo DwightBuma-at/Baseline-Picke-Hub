@@ -929,7 +929,7 @@
                     ${!isAssigned ? `
                       <div class="relative">
                         <select onchange="handleAssignSelection('${playerIdSafe}', this.value); this.selectedIndex=0;" class="appearance-none bg-white hover:bg-slate-50 border border-slate-300 text-brand-blue text-xs font-bold py-1.5 pl-3 pr-8 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue cursor-pointer transition shadow-sm z-10 relative pr-0" style="padding-right: 2rem;">
-                          <option value="" disabled selected>Assign</option>
+                          <option value="" disabled selected>Select</option>
                           <option value="${player.autoQueue ? 'auto-queue-unassign' : 'auto-queue'}" ${isPlayerInactive && !player.autoQueue ? 'disabled style="text-decoration: line-through; color:#94a3b8;"' : ''}>${player.autoQueue ? 'Unassign' : 'Auto-Queue'}</option>
                           ${courtOptions}
                         </select>
@@ -1101,7 +1101,7 @@
         player.autoQueue = true;
       });
 
-      processAutoQueueAssignments({ prioritizeByGamesPlayed: true });
+      processAutoQueueAssignments({ prioritizeByGamesPlayed: true, randomizeTeams: true });
       saveSystemState(appState);
       renderQueue();
       showToast('Auto Assign processed for queued players.', 'success');
@@ -1136,6 +1136,7 @@
 
     function processAutoQueueAssignments(options = {}) {
       const prioritizeByGamesPlayed = Boolean(options.prioritizeByGamesPlayed);
+      const randomizeTeams = Boolean(options.randomizeTeams);
       const availableCourts = appState.coords.filter(court => {
         const players = Array.isArray(court.players) ? court.players : [];
         return players.length === 0;
@@ -1179,8 +1180,16 @@
         while (groupedByCategory[categoryKey].length >= 4 && availableCourts.length > 0) {
           const court = availableCourts.shift();
           const playersForCourt = groupedByCategory[categoryKey].splice(0, 4);
+          const teamAssignmentOrder = [...playersForCourt];
 
-          playersForCourt.forEach((player, index) => {
+          if (randomizeTeams) {
+            for (let index = teamAssignmentOrder.length - 1; index > 0; index--) {
+              const randomIndex = Math.floor(Math.random() * (index + 1));
+              [teamAssignmentOrder[index], teamAssignmentOrder[randomIndex]] = [teamAssignmentOrder[randomIndex], teamAssignmentOrder[index]];
+            }
+          }
+
+          teamAssignmentOrder.forEach((player, index) => {
             const queueIndex = appState.queue.findIndex(queuePlayer => queuePlayer.id == player.id);
             if (queueIndex === -1) return;
 
