@@ -1178,7 +1178,20 @@
 
       Object.keys(groupedByCategory).forEach(categoryKey => {
         while (groupedByCategory[categoryKey].length >= 4 && availableCourts.length > 0) {
-          const court = availableCourts.shift();
+          const matchingCourtIndex = availableCourts.findIndex(court => {
+            const assignedCategories = Array.isArray(court.assignedCategories)
+              ? court.assignedCategories.map(category => String(category || '').trim().toLowerCase()).filter(Boolean)
+              : [];
+
+            if (assignedCategories.length === 0) return true;
+            return assignedCategories.includes(categoryKey);
+          });
+
+          if (matchingCourtIndex === -1) {
+            break;
+          }
+
+          const [court] = availableCourts.splice(matchingCourtIndex, 1);
           const playersForCourt = groupedByCategory[categoryKey].splice(0, 4);
           const teamAssignmentOrder = [...playersForCourt];
 
