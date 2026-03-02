@@ -361,6 +361,18 @@
       updateStats(state);
     }
 
+    function getGameLogs() {
+      const logsRaw = localStorage.getItem('baseline_game_logs');
+      if (!logsRaw) return [];
+
+      try {
+        const parsedLogs = JSON.parse(logsRaw);
+        return Array.isArray(parsedLogs) ? parsedLogs : [];
+      } catch {
+        return [];
+      }
+    }
+
     // Initialization
     let appState = getSystemState();
 
@@ -373,6 +385,11 @@
         if (e.key === 'baseline_state') {
           appState = JSON.parse(e.newValue);
           updateStats(appState);
+          return;
+        }
+
+        if (e.key === 'baseline_game_logs') {
+          updateStats(appState);
         }
       });
     });
@@ -380,16 +397,25 @@
     function updateStats(state) {
       let active = 0;
       let availableCourts = 0;
-      let waiting = state.queue.filter(p => p.status === 'Waiting').length;
+      let waiting = (state.queue || []).filter(p => p.status === 'Waiting').length;
+      let occupiedCourts = 0;
 
-      state.coords.forEach(c => {
+      const gameLogs = getGameLogs();
+      const finishedGames = gameLogs.length;
+
+      (state.coords || []).forEach(c => {
         active += c.players.length;
         if (c.status === 'available') availableCourts++;
+        if ((Array.isArray(c.players) && c.players.length > 0) || c.status === 'occupied') {
+          occupiedCourts++;
+        }
       });
 
       document.getElementById('stat-active-players').innerText = active;
       document.getElementById('stat-available-courts').innerText = availableCourts;
       document.getElementById('stat-waiting-queue').innerText = waiting;
+      document.getElementById('stat-occupied-courts').innerText = occupiedCourts;
+      document.getElementById('stat-finished-games').innerText = finishedGames;
     }
 
     // -------------------------------------------------------------
