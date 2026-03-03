@@ -783,52 +783,76 @@
       });
     }
 
+    function isPlayerRecentlyFinished(player) {
+      const recentlyFinishedAt = Number(player?.recentlyFinishedAt);
+      return Number.isFinite(recentlyFinishedAt) && recentlyFinishedAt > 0;
+    }
+
     function selectAutoQueuePlayersForCourt(categoryPlayers, court, gamesPlayedByPlayerName = null) {
       const courtGenderSetting = normalizeCourtGenderSetting(court.genderSetting);
-      const candidatePlayers = categoryPlayers;
-      const prioritizedCandidates = sortPlayersByAssignmentPriority(candidatePlayers, gamesPlayedByPlayerName);
-
-      if (courtGenderSetting === 'Male' || courtGenderSetting === 'Female') {
-        const requiredGender = courtGenderSetting.toLowerCase();
-        const eligiblePlayers = prioritizedCandidates.filter(player => getPlayerGenderKey(player) === requiredGender);
-        return eligiblePlayers.length >= 4 ? eligiblePlayers.slice(0, 4) : [];
-      }
-
-      const mixEligiblePlayers = prioritizedCandidates.filter(player => {
-        const genderKey = getPlayerGenderKey(player);
-        return genderKey === 'male' || genderKey === 'female';
-      });
-
-      if (mixEligiblePlayers.length < 4) return [];
-
-      const malePlayers = sortPlayersByAssignmentPriority(
-        mixEligiblePlayers.filter(player => getPlayerGenderKey(player) === 'male'),
+      const prioritizedFreshCandidates = sortPlayersByAssignmentPriority(
+        categoryPlayers.filter(player => !isPlayerRecentlyFinished(player)),
         gamesPlayedByPlayerName
       );
-      const femalePlayers = sortPlayersByAssignmentPriority(
-        mixEligiblePlayers.filter(player => getPlayerGenderKey(player) === 'female'),
+      const prioritizedRecentlyFinishedCandidates = sortPlayersByAssignmentPriority(
+        categoryPlayers.filter(player => isPlayerRecentlyFinished(player)),
         gamesPlayedByPlayerName
       );
-      if (malePlayers.length === 0 || femalePlayers.length === 0) return [];
+      const prioritizedCandidatesWithFallback = [
+        ...prioritizedFreshCandidates,
+        ...prioritizedRecentlyFinishedCandidates
+      ];
 
-      const selectedPlayers = [malePlayers[0], femalePlayers[0]];
-      const selectedIds = new Set(selectedPlayers.map(player => String(player.id)));
+      const selectPlayersFromCandidates = (prioritizedCandidates) => {
+        if (courtGenderSetting === 'Male' || courtGenderSetting === 'Female') {
+          const requiredGender = courtGenderSetting.toLowerCase();
+          const eligiblePlayers = prioritizedCandidates.filter(player => getPlayerGenderKey(player) === requiredGender);
+          return eligiblePlayers.length >= 4 ? eligiblePlayers.slice(0, 4) : [];
+        }
 
-      for (const player of prioritizedCandidates) {
-        if (selectedPlayers.length >= 4) break;
-        const genderKey = getPlayerGenderKey(player);
-        if (genderKey !== 'male' && genderKey !== 'female') continue;
-        const playerId = String(player.id);
-        if (selectedIds.has(playerId)) continue;
-        selectedPlayers.push(player);
-        selectedIds.add(playerId);
+        const mixEligiblePlayers = prioritizedCandidates.filter(player => {
+          const genderKey = getPlayerGenderKey(player);
+          return genderKey === 'male' || genderKey === 'female';
+        });
+
+        if (mixEligiblePlayers.length < 4) return [];
+
+        const malePlayers = sortPlayersByAssignmentPriority(
+          mixEligiblePlayers.filter(player => getPlayerGenderKey(player) === 'male'),
+          gamesPlayedByPlayerName
+        );
+        const femalePlayers = sortPlayersByAssignmentPriority(
+          mixEligiblePlayers.filter(player => getPlayerGenderKey(player) === 'female'),
+          gamesPlayedByPlayerName
+        );
+        if (malePlayers.length === 0 || femalePlayers.length === 0) return [];
+
+        const selectedPlayers = [malePlayers[0], femalePlayers[0]];
+        const selectedIds = new Set(selectedPlayers.map(player => String(player.id)));
+
+        for (const player of prioritizedCandidates) {
+          if (selectedPlayers.length >= 4) break;
+          const genderKey = getPlayerGenderKey(player);
+          if (genderKey !== 'male' && genderKey !== 'female') continue;
+          const playerId = String(player.id);
+          if (selectedIds.has(playerId)) continue;
+          selectedPlayers.push(player);
+          selectedIds.add(playerId);
+        }
+
+        if (selectedPlayers.length < 4) return [];
+
+        const hasMale = selectedPlayers.some(player => getPlayerGenderKey(player) === 'male');
+        const hasFemale = selectedPlayers.some(player => getPlayerGenderKey(player) === 'female');
+        return hasMale && hasFemale ? selectedPlayers : [];
+      };
+
+      const freshSelection = selectPlayersFromCandidates(prioritizedFreshCandidates);
+      if (freshSelection.length === 4) {
+        return freshSelection;
       }
 
-      if (selectedPlayers.length < 4) return [];
-
-      const hasMale = selectedPlayers.some(player => getPlayerGenderKey(player) === 'male');
-      const hasFemale = selectedPlayers.some(player => getPlayerGenderKey(player) === 'female');
-      return hasMale && hasFemale ? selectedPlayers : [];
+      return selectPlayersFromCandidates(prioritizedCandidatesWithFallback);
     }
 
     function getGamesPlayedByPlayerName() {
@@ -1314,9 +1338,8 @@
       }
 
       const currentSessionId = getCurrentAutoQueueSessionId();
-      if (currentSessionId > 0 && Number(player.lastFinishedAutoQueueSessionId) === currentSessionId) {
-        showToast('This player already finished in the current Auto-Queue session.', 'error');
-        return;
+      if (currentSessionId > 0 && Number(player.autoQueueOptOutSessionId) === currentSessionId) {
+        player.autoQueueOptOutSessionId = null;
       }
 
       player.status = 'Waiting';
@@ -1342,6 +1365,11 @@
       player.team = null;
       player.autoQueue = false;
 
+      const currentSessionId = getCurrentAutoQueueSessionId();
+      if (currentSessionId > 0) {
+        player.autoQueueOptOutSessionId = currentSessionId;
+      }
+
       saveSystemState(appState);
       renderQueue();
       showToast(`${player.name} removed from Auto-Queue.`, 'success');
@@ -1352,7 +1380,7 @@
       const eligiblePlayers = appState.queue.filter(player =>
         player.status === 'Waiting'
         && normalizePlayerStatusValue(player.playerStatus) !== 'Inactive'
-        && (!currentSessionId || Number(player.lastFinishedAutoQueueSessionId) !== currentSessionId)
+        && (!currentSessionId || Number(player.autoQueueOptOutSessionId) !== currentSessionId)
       );
 
       if (eligiblePlayers.length === 0) {
