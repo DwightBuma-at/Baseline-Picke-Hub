@@ -232,9 +232,9 @@
                   </svg>
                 </div>
               </div>
-              <button onclick="openAutoAssignModal()"
+              <button id="auto-queue-toggle-btn" onclick="handleAutoQueueToggle()"
                 class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold rounded-lg border border-slate-300 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-brand-blue whitespace-nowrap">
-                Auto Assign
+                Auto-Queue
               </button>
               <button onclick="openModal()"
                 class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-brand-blue hover:bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-brand-blue border border-transparent whitespace-nowrap">
@@ -244,11 +244,13 @@
           </div>
           <div
             class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex-1 flex flex-col min-h-[400px]">
+            <div id="auto-queue-session-indicator" class="hidden px-6 py-3 border-b border-slate-200 bg-blue-50/70">
+              <p class="text-sm font-semibold text-blue-800">Table is on Auto-Queue • <span id="auto-queue-session-timer">00:00</span></p>
+            </div>
             <div class="overflow-x-auto flex-1">
               <table class="min-w-full text-left text-sm whitespace-nowrap">
                 <thead class="sticky top-0 z-10 bg-slate-50/95 uppercase tracking-wider text-slate-500 border-b border-slate-200 backdrop-blur-sm">
                   <tr>
-                    <th scope="col" class="px-6 py-4 font-semibold text-xs">Queue #</th>
                     <th scope="col" class="px-6 py-4 font-semibold text-xs">Player Name</th>
                     <th scope="col" class="px-6 py-4 font-semibold text-xs">Category</th>
                     <th scope="col" class="px-6 py-4 font-semibold text-xs text-center">Games Played</th>
@@ -502,18 +504,18 @@
     </div>
   </div>
 
-  <!-- Auto Assign Confirmation Modal -->
+  <!-- Auto-Queue Confirmation Modal -->
   <div id="auto-assign-modal"
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
     <div class="bg-white w-full max-w-sm rounded-2xl border border-slate-200 shadow-2xl p-6">
-      <h3 class="text-lg font-bold text-slate-900">Confirm Auto Assign</h3>
-      <p class="mt-2 text-sm text-slate-600">Auto-Assign eligible waiting players now?</p>
+      <h3 class="text-lg font-bold text-slate-900">Confirm Auto-Queue</h3>
+      <p class="mt-2 text-sm text-slate-600">Start a timed Auto-Queue session for active waiting players?</p>
       <div class="mt-6 flex items-center justify-end gap-3">
-        <button type="button" onclick="closeAutoAssignModal()"
+        <button type="button" onclick="closeAutoQueueModal()"
           class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors">
           Cancel
         </button>
-        <button type="button" onclick="confirmAutoAssign()"
+        <button type="button" onclick="confirmAutoQueue()"
           class="px-4 py-2 text-sm font-semibold text-white bg-brand-blue hover:bg-blue-600 rounded-lg transition-colors">
           Confirm
         </button>
@@ -751,50 +753,71 @@
       return copy;
     }
 
-    function splitRecentlyFinishedPlayers(players) {
-      const freshPlayers = [];
-      const recentlyFinishedPlayers = [];
+    function getPlayerGamesPlayedCount(player, gamesPlayedByPlayerName = null) {
+      if (gamesPlayedByPlayerName) {
+        return gamesPlayedByPlayerName[normalizePlayerNameKey(player?.name)] || 0;
+      }
 
-      players.forEach(player => {
-        const recentlyFinishedAt = Number(player?.recentlyFinishedAt);
-        if (Number.isFinite(recentlyFinishedAt) && recentlyFinishedAt > 0) {
-          recentlyFinishedPlayers.push(player);
-          return;
-        }
-
-        freshPlayers.push(player);
-      });
-
-      return { freshPlayers, recentlyFinishedPlayers };
+      const parsedGamesPlayed = Number(player?.gamesPlayed);
+      return Number.isFinite(parsedGamesPlayed) ? parsedGamesPlayed : 0;
     }
 
-    function selectAutoQueuePlayersForCourt(categoryPlayers, court) {
+    function sortPlayersByAssignmentPriority(players, gamesPlayedByPlayerName = null) {
+      return [...players].sort((a, b) => {
+        const aGamesPlayed = getPlayerGamesPlayedCount(a, gamesPlayedByPlayerName);
+        const bGamesPlayed = getPlayerGamesPlayedCount(b, gamesPlayedByPlayerName);
+        if (aGamesPlayed !== bGamesPlayed) {
+          return aGamesPlayed - bGamesPlayed;
+        }
+
+        const aQueueNumber = Number(a?.queueNumber);
+        const bQueueNumber = Number(b?.queueNumber);
+        const aHasQueueNumber = Number.isFinite(aQueueNumber) && aQueueNumber > 0;
+        const bHasQueueNumber = Number.isFinite(bQueueNumber) && bQueueNumber > 0;
+
+        if (aHasQueueNumber && bHasQueueNumber) {
+          return aQueueNumber - bQueueNumber;
+        }
+
+        return (a?.createdAt || Number(a?.id) || 0) - (b?.createdAt || Number(b?.id) || 0);
+      });
+    }
+
+    function selectAutoQueuePlayersForCourt(categoryPlayers, court, gamesPlayedByPlayerName = null) {
       const courtGenderSetting = normalizeCourtGenderSetting(court.genderSetting);
-      const { freshPlayers } = splitRecentlyFinishedPlayers(categoryPlayers);
-      const candidatePlayers = freshPlayers.length > 0 ? freshPlayers : categoryPlayers;
+      const candidatePlayers = categoryPlayers;
+      const prioritizedCandidates = sortPlayersByAssignmentPriority(candidatePlayers, gamesPlayedByPlayerName);
 
       if (courtGenderSetting === 'Male' || courtGenderSetting === 'Female') {
         const requiredGender = courtGenderSetting.toLowerCase();
-        const eligiblePlayers = candidatePlayers.filter(player => getPlayerGenderKey(player) === requiredGender);
+        const eligiblePlayers = prioritizedCandidates.filter(player => getPlayerGenderKey(player) === requiredGender);
         return eligiblePlayers.length >= 4 ? eligiblePlayers.slice(0, 4) : [];
       }
 
-      const mixEligiblePlayers = candidatePlayers.filter(player => {
+      const mixEligiblePlayers = prioritizedCandidates.filter(player => {
         const genderKey = getPlayerGenderKey(player);
         return genderKey === 'male' || genderKey === 'female';
       });
 
       if (mixEligiblePlayers.length < 4) return [];
 
-      const malePlayers = mixEligiblePlayers.filter(player => getPlayerGenderKey(player) === 'male');
-      const femalePlayers = mixEligiblePlayers.filter(player => getPlayerGenderKey(player) === 'female');
+      const malePlayers = sortPlayersByAssignmentPriority(
+        mixEligiblePlayers.filter(player => getPlayerGenderKey(player) === 'male'),
+        gamesPlayedByPlayerName
+      );
+      const femalePlayers = sortPlayersByAssignmentPriority(
+        mixEligiblePlayers.filter(player => getPlayerGenderKey(player) === 'female'),
+        gamesPlayedByPlayerName
+      );
       if (malePlayers.length === 0 || femalePlayers.length === 0) return [];
 
       const selectedPlayers = [malePlayers[0], femalePlayers[0]];
       const selectedIds = new Set(selectedPlayers.map(player => String(player.id)));
 
-      for (const player of mixEligiblePlayers) {
+      for (const player of prioritizedCandidates) {
         if (selectedPlayers.length >= 4) break;
+        const genderKey = getPlayerGenderKey(player);
+        if (genderKey !== 'male' && genderKey !== 'female') continue;
         const playerId = String(player.id);
         if (selectedIds.has(playerId)) continue;
         selectedPlayers.push(player);
@@ -810,18 +833,14 @@
 
     function getGamesPlayedByPlayerName() {
       const gamesPlayedByPlayerName = {};
-      const gameLogs = getGameLogs();
 
-      gameLogs.forEach(logEntry => {
-        const participants = [
-          ...(Array.isArray(logEntry?.teamA) ? logEntry.teamA : []),
-          ...(Array.isArray(logEntry?.teamB) ? logEntry.teamB : [])
-        ];
+      (appState.queue || []).forEach(player => {
+        const nameKey = normalizePlayerNameKey(player?.name);
+        if (!nameKey) return;
 
-        const uniqueParticipants = new Set(participants.map(normalizePlayerNameKey).filter(Boolean));
-        uniqueParticipants.forEach(nameKey => {
-          gamesPlayedByPlayerName[nameKey] = (gamesPlayedByPlayerName[nameKey] || 0) + 1;
-        });
+        const gamesPlayed = Number(player?.gamesPlayed);
+        const safeGamesPlayed = Number.isFinite(gamesPlayed) && gamesPlayed > 0 ? gamesPlayed : 0;
+        gamesPlayedByPlayerName[nameKey] = Math.max(gamesPlayedByPlayerName[nameKey] || 0, safeGamesPlayed);
       });
 
       return gamesPlayedByPlayerName;
@@ -875,12 +894,19 @@
     let activeDetailsPlayerId = null;
     let queueCurrentPage = 1;
     const QUEUE_PAGE_SIZE = 8;
+    const AUTO_QUEUE_SESSION_KEY = 'baseline_auto_queue_session';
+    let autoQueueSessionStartedAt = 0;
+    let autoQueueSessionId = 0;
+    let autoQueueSessionIntervalId = null;
 
     document.addEventListener('DOMContentLoaded', () => {
       initMobileSidebar();
       renderQueue();
       renderCategoryDropdownOptions();
       toggleCustomCategoryInput();
+      restoreAutoQueueSession();
+      updateAutoQueueToggleButton();
+      updateAutoQueueSessionIndicator();
 
       document.getElementById('queue-search')?.addEventListener('input', () => {
         queueCurrentPage = 1;
@@ -907,6 +933,11 @@
 
         if (e.key === 'baseline_game_logs') {
           renderQueue();
+          return;
+        }
+
+        if (e.key === AUTO_QUEUE_SESSION_KEY) {
+          restoreAutoQueueSession();
         }
       });
 
@@ -930,7 +961,7 @@
 
       document.getElementById('auto-assign-modal').addEventListener('click', function (e) {
         if (e.target === this) {
-          closeAutoAssignModal();
+          closeAutoQueueModal();
         }
       });
 
@@ -955,7 +986,6 @@
       const sortSelect = document.getElementById('queue-sort');
       const searchValue = (searchInput?.value || '').trim().toLowerCase();
       const sortValue = sortSelect?.value || 'queue-number';
-      const gamesPlayedByPlayerName = getGamesPlayedByPlayerName();
 
       const compareByQueueOrder = (a, b) => {
         const aQueueNumber = Number(a.queueNumber);
@@ -1002,7 +1032,8 @@
           ? 'assigned'
           : (player.autoQueue ? 'auto-queue' : 'waiting');
         const playerStatusValue = normalizePlayerStatusValue(player.playerStatus).toLowerCase();
-        const gamesPlayedValue = gamesPlayedByPlayerName[normalizePlayerNameKey(player.name)] || 0;
+        const gamesPlayedValue = Number(player.gamesPlayed);
+        const safeGamesPlayedValue = Number.isFinite(gamesPlayedValue) && gamesPlayedValue > 0 ? gamesPlayedValue : 0;
         const courtValue = player.assignedCourt ? `court ${player.assignedCourt}` : '';
         const teamValue = player.team || '';
 
@@ -1012,7 +1043,7 @@
           String(player.name || ''),
           categoryValue,
           playerStatusValue,
-          String(gamesPlayedValue),
+          String(safeGamesPlayedValue),
           statusValue,
           courtValue,
           teamValue
@@ -1033,13 +1064,15 @@
         }
 
         if (sortValue === 'most-played' || sortValue === 'least-played') {
-          const aGamesPlayed = gamesPlayedByPlayerName[normalizePlayerNameKey(a.name)] || 0;
-          const bGamesPlayed = gamesPlayedByPlayerName[normalizePlayerNameKey(b.name)] || 0;
+          const aGamesPlayed = Number(a.gamesPlayed);
+          const bGamesPlayed = Number(b.gamesPlayed);
+          const safeAGamesPlayed = Number.isFinite(aGamesPlayed) && aGamesPlayed > 0 ? aGamesPlayed : 0;
+          const safeBGamesPlayed = Number.isFinite(bGamesPlayed) && bGamesPlayed > 0 ? bGamesPlayed : 0;
 
-          if (aGamesPlayed !== bGamesPlayed) {
+          if (safeAGamesPlayed !== safeBGamesPlayed) {
             return sortValue === 'most-played'
-              ? bGamesPlayed - aGamesPlayed
-              : aGamesPlayed - bGamesPlayed;
+              ? safeBGamesPlayed - safeAGamesPlayed
+              : safeAGamesPlayed - safeBGamesPlayed;
           }
 
           return compareByQueueOrder(a, b);
@@ -1061,7 +1094,7 @@
         emptyState.classList.add('hidden');
         emptyState.classList.remove('flex');
         pagination.classList.add('hidden');
-        tbody.innerHTML = `<tr><td colspan="9" class="px-6 py-8 text-center text-slate-500">No matching players found.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="px-6 py-8 text-center text-slate-500">No matching players found.</td></tr>`;
         return;
       }
 
@@ -1077,7 +1110,8 @@
           : rawCategoryValue;
         const playerGender = normalizePlayerGenderValue(player.gender);
         const playerStatus = normalizePlayerStatusValue(player.playerStatus);
-        const gamesPlayed = gamesPlayedByPlayerName[normalizePlayerNameKey(player.name)] || 0;
+        const parsedGamesPlayed = Number(player.gamesPlayed);
+        const gamesPlayed = Number.isFinite(parsedGamesPlayed) && parsedGamesPlayed > 0 ? parsedGamesPlayed : 0;
         const isPlayerInactive = playerStatus === 'Inactive';
         const genderIconHtml = playerGender === 'Male'
           ? '<span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 border border-blue-200" title="Male"><svg class="w-4 h-4 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="3"></circle><path d="M12 8v8"></path><path d="M8 11v5"></path><path d="M16 11v5"></path><path d="M10 21v-5"></path><path d="M14 21v-5"></path></svg></span>'
@@ -1094,10 +1128,12 @@
 
         // Status formatting
         const statusHtml = isAssigned
-          ? `<span class="inline-flex items-center gap-1.5 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 text-xs font-semibold"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Assigned</span>`
+          ? `<span class="inline-flex items-center gap-1.5 text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200 text-xs font-semibold"><span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>In-game</span>`
           : player.autoQueue
-            ? `<span class="inline-flex items-center gap-1.5 text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200 text-xs font-semibold"><span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>Auto-Queue</span>`
-            : `<span class="inline-flex items-center gap-1.5 text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 text-xs font-semibold"><span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>Waiting</span>`;
+            ? `<span class="inline-flex items-center gap-1.5 text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 text-xs font-semibold"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>Auto-Queue</span>`
+            : (isPlayerInactive
+              ? `<span class="inline-flex items-center gap-1.5 text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200 text-xs font-semibold"><span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>Inactive</span>`
+              : `<span class="inline-flex items-center gap-1.5 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 text-xs font-semibold"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Active</span>`);
 
         const courtOptions = appState.coords.map(c =>
           (() => {
@@ -1114,7 +1150,6 @@
 
         const row = `
             <tr class="hover:bg-slate-50 transition-colors group">
-            <td class="px-6 py-4 text-slate-700 font-semibold">${player.queueNumber || '—'}</td>
                 <td class="px-6 py-4">
                     <div class="inline-flex items-center gap-1.5 max-w-full">
                       ${genderIconHtml}
@@ -1140,16 +1175,22 @@
                 <td class="px-6 py-4 text-right">
                   <div class="flex items-center justify-end gap-2 isolate">
                     ${!isAssigned ? `
-                      <div class="relative">
-                        <select onchange="handleAssignSelection('${playerIdSafe}', this.value); this.selectedIndex=0;" class="w-24 appearance-none bg-white hover:bg-slate-50 border border-slate-300 text-brand-blue text-xs font-bold py-1.5 pl-3 pr-8 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue cursor-pointer transition shadow-sm z-10 relative pr-0" style="padding-right: 2rem;">
-                          <option value="" disabled selected>Select</option>
-                          <option value="${player.autoQueue ? 'auto-queue-unassign' : 'auto-queue'}" ${isPlayerInactive && !player.autoQueue ? 'disabled style="text-decoration: line-through; color:#94a3b8;"' : ''}>${player.autoQueue ? 'Unassign' : 'Auto-Queue'}</option>
-                          ${courtOptions}
-                        </select>
-                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-brand-blue z-20">
-                          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path></svg>
+                      ${player.autoQueue ? `
+                        <button onclick="unsetPlayerAutoQueue('${playerIdSafe}')" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-bold rounded-lg transition shadow-sm">
+                          Unassign
+                        </button>
+                      ` : `
+                        <div class="relative">
+                          <select onchange="handleAssignSelection('${playerIdSafe}', this.value); this.selectedIndex=0;" class="w-24 appearance-none bg-white hover:bg-slate-50 border border-slate-300 text-brand-blue text-xs font-bold py-1.5 pl-3 pr-8 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue cursor-pointer transition shadow-sm z-10 relative pr-0" style="padding-right: 2rem;">
+                            <option value="" disabled selected>Assign</option>
+                            <option value="auto-queue" ${isPlayerInactive ? 'disabled style="text-decoration: line-through; color:#94a3b8;"' : ''}>Auto-Queue</option>
+                            ${courtOptions}
+                          </select>
+                          <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-brand-blue z-20">
+                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path></svg>
+                          </div>
                         </div>
-                      </div>
+                      `}
                     ` : `
                       <button onclick="unassignPlayer('${playerIdSafe}')" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-bold rounded-lg transition shadow-sm">
                         Unassign
@@ -1272,6 +1313,12 @@
         return;
       }
 
+      const currentSessionId = getCurrentAutoQueueSessionId();
+      if (currentSessionId > 0 && Number(player.lastFinishedAutoQueueSessionId) === currentSessionId) {
+        showToast('This player already finished in the current Auto-Queue session.', 'error');
+        return;
+      }
+
       player.status = 'Waiting';
       player.assignedCourt = null;
       player.team = null;
@@ -1301,12 +1348,14 @@
     }
 
     function autoAssignQueuedPlayers() {
+      const currentSessionId = getCurrentAutoQueueSessionId();
       const eligiblePlayers = appState.queue.filter(player =>
-        player.status === 'Waiting' && normalizePlayerStatusValue(player.playerStatus) !== 'Inactive'
+        player.status === 'Waiting'
+        && normalizePlayerStatusValue(player.playerStatus) !== 'Inactive'
+        && (!currentSessionId || Number(player.lastFinishedAutoQueueSessionId) !== currentSessionId)
       );
 
       if (eligiblePlayers.length === 0) {
-        showToast('No eligible waiting players for Auto Assign.', 'error');
         return;
       }
 
@@ -1320,10 +1369,9 @@
       processAutoQueueAssignments({ prioritizeByGamesPlayed: true, randomizeTeams: true });
       saveSystemState(appState);
       renderQueue();
-      showToast('Auto Assign processed for queued players.', 'success');
     }
 
-    function openAutoAssignModal() {
+    function openAutoQueueModal() {
       const modal = document.getElementById('auto-assign-modal');
       if (!modal) return;
 
@@ -1334,7 +1382,7 @@
       });
     }
 
-    function closeAutoAssignModal() {
+    function closeAutoQueueModal() {
       const modal = document.getElementById('auto-assign-modal');
       if (!modal) return;
 
@@ -1345,9 +1393,160 @@
       }, 200);
     }
 
-    function confirmAutoAssign() {
-      closeAutoAssignModal();
+    function getAutoQueueSessionState() {
+      const rawState = localStorage.getItem(AUTO_QUEUE_SESSION_KEY);
+      if (!rawState) {
+        return { active: false, startedAt: 0, sessionId: 0 };
+      }
+
+      try {
+        const parsedState = JSON.parse(rawState);
+        return {
+          active: Boolean(parsedState?.active),
+          startedAt: Number(parsedState?.startedAt) || 0,
+          sessionId: Number(parsedState?.sessionId) || 0
+        };
+      } catch {
+        return { active: false, startedAt: 0, sessionId: 0 };
+      }
+    }
+
+    function saveAutoQueueSessionState(active, startedAt = 0, sessionId = 0) {
+      localStorage.setItem(AUTO_QUEUE_SESSION_KEY, JSON.stringify({
+        active,
+        startedAt: active ? startedAt : 0,
+        sessionId: active ? sessionId : 0
+      }));
+    }
+
+    function restoreAutoQueueSession() {
+      const sessionState = getAutoQueueSessionState();
+
+      if (sessionState.active) {
+        autoQueueSessionStartedAt = sessionState.startedAt > 0 ? sessionState.startedAt : Date.now();
+        autoQueueSessionId = sessionState.sessionId > 0 ? sessionState.sessionId : autoQueueSessionStartedAt;
+        if (!autoQueueSessionIntervalId) {
+          autoQueueSessionIntervalId = setInterval(() => {
+            runAutoQueueSessionCycle();
+          }, 1000);
+        }
+      } else {
+        autoQueueSessionStartedAt = 0;
+        autoQueueSessionId = 0;
+        if (autoQueueSessionIntervalId) {
+          clearInterval(autoQueueSessionIntervalId);
+          autoQueueSessionIntervalId = null;
+        }
+      }
+
+      updateAutoQueueToggleButton();
+      updateAutoQueueSessionIndicator();
+    }
+
+    function isAutoQueueSessionActive() {
+      return autoQueueSessionStartedAt > 0;
+    }
+
+    function getCurrentAutoQueueSessionId() {
+      return isAutoQueueSessionActive() ? autoQueueSessionId : 0;
+    }
+
+    function updateAutoQueueToggleButton() {
+      const toggleButton = document.getElementById('auto-queue-toggle-btn');
+      if (!toggleButton) return;
+      toggleButton.innerText = isAutoQueueSessionActive() ? 'Stop Auto-Queue' : 'Auto-Queue';
+    }
+
+    function handleAutoQueueToggle() {
+      if (isAutoQueueSessionActive()) {
+        stopAutoQueueSession();
+        showToast('Auto-Queue session stopped.', 'success');
+        return;
+      }
+
+      openAutoQueueModal();
+    }
+
+    function formatAutoQueueTimer(secondsRemaining) {
+      const safeSeconds = Math.max(0, Number(secondsRemaining) || 0);
+      const minutes = Math.floor(safeSeconds / 60);
+      const seconds = safeSeconds % 60;
+      return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    function updateAutoQueueSessionIndicator() {
+      const indicator = document.getElementById('auto-queue-session-indicator');
+      const timer = document.getElementById('auto-queue-session-timer');
+      if (!indicator || !timer) return;
+
+      if (!isAutoQueueSessionActive()) {
+        indicator.classList.add('hidden');
+        timer.innerText = '00:00';
+        return;
+      }
+
+      const elapsedSeconds = Math.floor((Date.now() - autoQueueSessionStartedAt) / 1000);
+      timer.innerText = formatAutoQueueTimer(elapsedSeconds);
+      indicator.classList.remove('hidden');
+    }
+
+    function runAutoQueueSessionCycle() {
+      if (!isAutoQueueSessionActive()) {
+        return;
+      }
+
       autoAssignQueuedPlayers();
+      updateAutoQueueSessionIndicator();
+    }
+
+    function startAutoQueueSession() {
+      autoQueueSessionStartedAt = Date.now();
+      autoQueueSessionId = autoQueueSessionStartedAt;
+      saveAutoQueueSessionState(true, autoQueueSessionStartedAt, autoQueueSessionId);
+
+      if (autoQueueSessionIntervalId) {
+        clearInterval(autoQueueSessionIntervalId);
+      }
+
+      updateAutoQueueToggleButton();
+      runAutoQueueSessionCycle();
+      autoQueueSessionIntervalId = setInterval(() => {
+        runAutoQueueSessionCycle();
+      }, 1000);
+    }
+
+    function stopAutoQueueSession(clearAutoQueuedPlayers = true) {
+      if (autoQueueSessionIntervalId) {
+        clearInterval(autoQueueSessionIntervalId);
+        autoQueueSessionIntervalId = null;
+      }
+
+      if (clearAutoQueuedPlayers) {
+        let hasQueueChanges = false;
+        appState.queue.forEach(player => {
+          if (player.status === 'Waiting' && player.autoQueue) {
+            player.autoQueue = false;
+            hasQueueChanges = true;
+          }
+        });
+
+        if (hasQueueChanges) {
+          saveSystemState(appState);
+          renderQueue();
+        }
+      }
+
+      autoQueueSessionStartedAt = 0;
+      autoQueueSessionId = 0;
+      saveAutoQueueSessionState(false, 0, 0);
+      updateAutoQueueToggleButton();
+      updateAutoQueueSessionIndicator();
+    }
+
+    function confirmAutoQueue() {
+      closeAutoQueueModal();
+      startAutoQueueSession();
+      showToast('Auto-Queue session started.', 'success');
     }
 
     function processAutoQueueAssignments(options = {}) {
@@ -1366,7 +1565,11 @@
       const gamesPlayedByPlayerName = prioritizeByGamesPlayed ? getGamesPlayedByPlayerName() : null;
 
       const autoQueuedPlayers = [...appState.queue]
-        .filter(player => player.status === 'Waiting' && player.autoQueue)
+        .filter(player =>
+          player.status === 'Waiting'
+          && player.autoQueue
+          && normalizePlayerStatusValue(player.playerStatus) !== 'Inactive'
+        )
         .sort((a, b) => {
           if (prioritizeByGamesPlayed && gamesPlayedByPlayerName) {
             const aGamesPlayed = gamesPlayedByPlayerName[normalizePlayerNameKey(a.name)] || 0;
@@ -1407,7 +1610,11 @@
             const hasCategoryMatch = assignedCategories.includes(categoryKey);
             if (!hasCategoryMatch) return false;
 
-            const eligiblePlayers = selectAutoQueuePlayersForCourt(groupedByCategory[categoryKey], court);
+            const eligiblePlayers = selectAutoQueuePlayersForCourt(
+              groupedByCategory[categoryKey],
+              court,
+              gamesPlayedByPlayerName
+            );
             return eligiblePlayers.length === 4;
           });
 
@@ -1416,7 +1623,11 @@
           }
 
           const [court] = courtPool.splice(matchingCourtIndex, 1);
-          const selectedPlayers = selectAutoQueuePlayersForCourt(groupedByCategory[categoryKey], court);
+          const selectedPlayers = selectAutoQueuePlayersForCourt(
+            groupedByCategory[categoryKey],
+            court,
+            gamesPlayedByPlayerName
+          );
           if (selectedPlayers.length < 4) {
             break;
           }
@@ -1714,7 +1925,7 @@
         : rawCategoryValue;
       const genderValue = normalizePlayerGenderValue(player.gender);
       const playerStatusValue = normalizePlayerStatusValue(player.playerStatus);
-      const statusValue = player.status === 'Assigned' ? 'Assigned' : (player.autoQueue ? 'Auto-Queue' : 'Waiting');
+      const statusValue = player.status === 'Assigned' ? 'In-game' : (player.autoQueue ? 'Auto-Queue' : 'Waiting');
       const courtValue = player.assignedCourt ? `Court ${player.assignedCourt}` : '—';
       const teamValue = player.team || '—';
 
