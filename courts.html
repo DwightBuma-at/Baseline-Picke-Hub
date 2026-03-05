@@ -362,7 +362,8 @@
           { id: 4, name: 'Court 4', status: 'available', players: [], assignedCategories: [], genderSetting: 'Mix' },
           { id: 5, name: 'Court 5', status: 'available', players: [], assignedCategories: [], genderSetting: 'Mix' }
         ],
-        queue: []
+        queue: [],
+        gameRound: 0
       };
       const stateStr = localStorage.getItem('baseline_state');
       if (!stateStr) return defaultState;
@@ -385,7 +386,8 @@
 
         const state = {
           coords: normalizedCoords,
-          queue: Array.isArray(parsedState?.queue) ? parsedState.queue : []
+          queue: Array.isArray(parsedState?.queue) ? parsedState.queue : [],
+          gameRound: Number.isFinite(Number(parsedState?.gameRound)) ? Number(parsedState.gameRound) : 0
         };
 
         if (!Array.isArray(parsedState?.coords) || parsedCoords.length !== 5) {
@@ -514,9 +516,28 @@
       });
     }
 
+    function getCurrentGameRound() {
+      const parsedRound = Number(appState?.gameRound);
+      return Number.isFinite(parsedRound) && parsedRound >= 0 ? parsedRound : 0;
+    }
+
+    function getPlayerCooldownUntilRound(player) {
+      const parsedCooldownRound = Number(player?.cooldownUntilRound);
+      return Number.isFinite(parsedCooldownRound) && parsedCooldownRound > 0 ? parsedCooldownRound : 0;
+    }
+
+    function isPlayerOnCooldown(player, currentRound = getCurrentGameRound()) {
+      const cooldownUntilRound = getPlayerCooldownUntilRound(player);
+      if (cooldownUntilRound > 0) {
+        return cooldownUntilRound > currentRound;
+      }
+
+      const legacyRecentlyFinishedAt = Number(player?.recentlyFinishedAt);
+      return currentRound === 0 && Number.isFinite(legacyRecentlyFinishedAt) && legacyRecentlyFinishedAt > 0;
+    }
+
     function isPlayerRecentlyFinished(player) {
-      const recentlyFinishedAt = Number(player?.recentlyFinishedAt);
-      return Number.isFinite(recentlyFinishedAt) && recentlyFinishedAt > 0;
+      return isPlayerOnCooldown(player);
     }
 
     function selectAutoQueuePlayersForCourt(categoryPlayers, court, gamesPlayedByPlayerName = null, preferredPlayerIds = null) {
@@ -624,6 +645,23 @@
       const prioritizeByGamesPlayed = options.prioritizeByGamesPlayed !== false;
       const randomizeTeams = Boolean(options.randomizeTeams);
       const randomizeCourts = options.randomizeCourts !== false;
+      const currentRound = getCurrentGameRound();
+      const currentSessionId = getCurrentAutoQueueSessionId();
+      let hasQueueFlagChanges = false;
+
+      appState.queue.forEach(player => {
+        const isEligibleForAutoQueue =
+          player.status === 'Waiting'
+          && normalizePlayerStatusValue(player.playerStatus) !== 'Inactive'
+          && !isPlayerOnCooldown(player, currentRound)
+          && (!currentSessionId || Number(player.autoQueueOptOutSessionId) !== currentSessionId);
+
+        if (isEligibleForAutoQueue && !player.autoQueue) {
+          player.autoQueue = true;
+          hasQueueFlagChanges = true;
+        }
+      });
+
       const availableCourts = appState.coords.filter(court => {
         const players = Array.isArray(court.players) ? court.players : [];
         return players.length === 0;
@@ -639,6 +677,7 @@
           player.status === 'Waiting'
           && player.autoQueue
           && normalizePlayerStatusValue(player.playerStatus) !== 'Inactive'
+          && !isPlayerOnCooldown(player)
         )
         .sort((a, b) => {
           if (prioritizeByGamesPlayed && gamesPlayedByPlayerName) {
@@ -661,7 +700,7 @@
           return (a.createdAt || Number(a.id) || 0) - (b.createdAt || Number(b.id) || 0);
         });
 
-      if (autoQueuedPlayers.length === 0) return false;
+      if (autoQueuedPlayers.length === 0) return hasQueueFlagChanges;
 
       let assignedCount = 0;
 
@@ -680,8 +719,10 @@
             if (player.status !== 'Waiting') return false;
             if (player.autoQueue) return false;
             if (normalizePlayerStatusValue(player.playerStatus) === 'Inactive') return false;
+            if (isPlayerOnCooldown(player)) return false;
             if (getAutoQueueCategoryKey(player) !== categoryKey) return false;
-            return isPlayerRecentlyFinished(player);
+            const parsedGamesPlayed = Number(player.gamesPlayed);
+            return Number.isFinite(parsedGamesPlayed) && parsedGamesPlayed > 0;
           });
 
           const combinedCategoryPlayers = [...preferredCategoryPlayers, ...supplementalCategoryPlayers];
@@ -746,6 +787,7 @@
             appState.queue[queueIndex].team = team;
             appState.queue[queueIndex].autoQueue = false;
             appState.queue[queueIndex].recentlyFinishedAt = null;
+            appState.queue[queueIndex].cooldownUntilRound = null;
             court.players.push(appState.queue[queueIndex]);
             assignedCount += 1;
           });
@@ -755,7 +797,7 @@
         }
       });
 
-      return assignedCount > 0;
+      return assignedCount > 0 || hasQueueFlagChanges;
     }
 
     let appState = getSystemState();
@@ -1102,6 +1144,9 @@
       logs.unshift(logEntry);
       saveGameLogs(logs);
       const currentAutoQueueSessionId = getCurrentAutoQueueSessionId();
+      const currentGameRound = getCurrentGameRound();
+      const nextGameRound = currentGameRound + 1;
+      appState.gameRound = nextGameRound;
 
       const finishedPlayerIds = new Set(court.players.map(player => String(player.id)));
       let currentMaxQueueNumber = appState.queue.reduce((maxValue, queuePlayer) => {
@@ -1114,6 +1159,7 @@
           const currentGamesPlayed = Number(queuePlayer.gamesPlayed);
           queuePlayer.gamesPlayed = Number.isFinite(currentGamesPlayed) ? currentGamesPlayed + 1 : 1;
           queuePlayer.recentlyFinishedAt = Date.now();
+          queuePlayer.cooldownUntilRound = nextGameRound + 1;
           queuePlayer.lastFinishedAutoQueueSessionId = currentAutoQueueSessionId;
           queuePlayer.status = 'Waiting';
           queuePlayer.assignedCourt = null;

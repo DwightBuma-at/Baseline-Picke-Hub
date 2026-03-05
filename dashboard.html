@@ -355,7 +355,8 @@
           { id: 4, name: 'Court 4', status: 'available', players: [] },
           { id: 5, name: 'Court 5', status: 'available', players: [] }
         ],
-        queue: []
+        queue: [],
+        gameRound: 0
       };
       const stateStr = localStorage.getItem('baseline_state');
       return stateStr ? JSON.parse(stateStr) : defaultState;
