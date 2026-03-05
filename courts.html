@@ -485,8 +485,16 @@
       return Number.isFinite(parsedGamesPlayed) ? parsedGamesPlayed : 0;
     }
 
-    function sortPlayersByAssignmentPriority(players, gamesPlayedByPlayerName = null) {
+    function sortPlayersByAssignmentPriority(players, gamesPlayedByPlayerName = null, preferredPlayerIds = null) {
       return [...players].sort((a, b) => {
+        if (preferredPlayerIds instanceof Set) {
+          const aIsPreferred = preferredPlayerIds.has(String(a?.id));
+          const bIsPreferred = preferredPlayerIds.has(String(b?.id));
+          if (aIsPreferred !== bIsPreferred) {
+            return aIsPreferred ? -1 : 1;
+          }
+        }
+
         const aGamesPlayed = getPlayerGamesPlayedCount(a, gamesPlayedByPlayerName);
         const bGamesPlayed = getPlayerGamesPlayedCount(b, gamesPlayedByPlayerName);
         if (aGamesPlayed !== bGamesPlayed) {
@@ -511,15 +519,17 @@
       return Number.isFinite(recentlyFinishedAt) && recentlyFinishedAt > 0;
     }
 
-    function selectAutoQueuePlayersForCourt(categoryPlayers, court, gamesPlayedByPlayerName = null) {
+    function selectAutoQueuePlayersForCourt(categoryPlayers, court, gamesPlayedByPlayerName = null, preferredPlayerIds = null) {
       const courtGenderSetting = normalizeCourtGenderSetting(court.genderSetting);
       const prioritizedFreshCandidates = sortPlayersByAssignmentPriority(
         categoryPlayers.filter(player => !isPlayerRecentlyFinished(player)),
-        gamesPlayedByPlayerName
+        gamesPlayedByPlayerName,
+        preferredPlayerIds
       );
       const prioritizedRecentlyFinishedCandidates = sortPlayersByAssignmentPriority(
         categoryPlayers.filter(player => isPlayerRecentlyFinished(player)),
-        gamesPlayedByPlayerName
+        gamesPlayedByPlayerName,
+        preferredPlayerIds
       );
       const prioritizedCandidatesWithFallback = [
         ...prioritizedFreshCandidates,
@@ -542,11 +552,13 @@
 
         const malePlayers = sortPlayersByAssignmentPriority(
           mixEligiblePlayers.filter(player => getPlayerGenderKey(player) === 'male'),
-          gamesPlayedByPlayerName
+          gamesPlayedByPlayerName,
+          preferredPlayerIds
         );
         const femalePlayers = sortPlayersByAssignmentPriority(
           mixEligiblePlayers.filter(player => getPlayerGenderKey(player) === 'female'),
-          gamesPlayedByPlayerName
+          gamesPlayedByPlayerName,
+          preferredPlayerIds
         );
         if (malePlayers.length === 0 || femalePlayers.length === 0) return [];
 
@@ -649,7 +661,7 @@
           return (a.createdAt || Number(a.id) || 0) - (b.createdAt || Number(b.id) || 0);
         });
 
-      if (autoQueuedPlayers.length < 4) return false;
+      if (autoQueuedPlayers.length === 0) return false;
 
       let assignedCount = 0;
 
@@ -661,7 +673,22 @@
       }, {});
 
       Object.keys(groupedByCategory).forEach(categoryKey => {
-        while (groupedByCategory[categoryKey].length >= 4 && courtPool.length > 0) {
+        while (groupedByCategory[categoryKey].length > 0 && courtPool.length > 0) {
+          const preferredCategoryPlayers = groupedByCategory[categoryKey];
+          const preferredPlayerIds = new Set(preferredCategoryPlayers.map(player => String(player.id)));
+          const supplementalCategoryPlayers = appState.queue.filter(player => {
+            if (player.status !== 'Waiting') return false;
+            if (player.autoQueue) return false;
+            if (normalizePlayerStatusValue(player.playerStatus) === 'Inactive') return false;
+            if (getAutoQueueCategoryKey(player) !== categoryKey) return false;
+            return isPlayerRecentlyFinished(player);
+          });
+
+          const combinedCategoryPlayers = [...preferredCategoryPlayers, ...supplementalCategoryPlayers];
+          if (combinedCategoryPlayers.length < 4) {
+            break;
+          }
+
           const matchingCourtIndex = courtPool.findIndex(court => {
             const assignedCategories = Array.isArray(court.assignedCategories)
               ? court.assignedCategories.map(category => String(category || '').trim().toLowerCase()).filter(Boolean)
@@ -673,11 +700,14 @@
             if (!hasCategoryMatch) return false;
 
             const eligiblePlayers = selectAutoQueuePlayersForCourt(
-              groupedByCategory[categoryKey],
+              combinedCategoryPlayers,
               court,
-              gamesPlayedByPlayerName
+              gamesPlayedByPlayerName,
+              preferredPlayerIds
             );
-            return eligiblePlayers.length === 4;
+
+            if (eligiblePlayers.length !== 4) return false;
+            return eligiblePlayers.some(player => preferredPlayerIds.has(String(player.id)));
           });
 
           if (matchingCourtIndex === -1) {
@@ -686,9 +716,10 @@
 
           const [court] = courtPool.splice(matchingCourtIndex, 1);
           const selectedPlayers = selectAutoQueuePlayersForCourt(
-            groupedByCategory[categoryKey],
+            combinedCategoryPlayers,
             court,
-            gamesPlayedByPlayerName
+            gamesPlayedByPlayerName,
+            preferredPlayerIds
           );
           if (selectedPlayers.length < 4) {
             break;
@@ -1087,10 +1118,7 @@
           queuePlayer.status = 'Waiting';
           queuePlayer.assignedCourt = null;
           queuePlayer.team = null;
-          queuePlayer.autoQueue = isAutoQueueSessionActive();
-          if (queuePlayer.autoQueue) {
-            queuePlayer.autoQueueOptOutSessionId = null;
-          }
+          queuePlayer.autoQueue = false;
           currentMaxQueueNumber += 1;
           queuePlayer.queueNumber = currentMaxQueueNumber;
         }

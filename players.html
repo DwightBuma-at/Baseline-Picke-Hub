@@ -788,15 +788,17 @@
       return Number.isFinite(recentlyFinishedAt) && recentlyFinishedAt > 0;
     }
 
-    function selectAutoQueuePlayersForCourt(categoryPlayers, court, gamesPlayedByPlayerName = null) {
+    function selectAutoQueuePlayersForCourt(categoryPlayers, court, gamesPlayedByPlayerName = null, preferredPlayerIds = null) {
       const courtGenderSetting = normalizeCourtGenderSetting(court.genderSetting);
       const prioritizedFreshCandidates = sortPlayersByAssignmentPriority(
         categoryPlayers.filter(player => !isPlayerRecentlyFinished(player)),
-        gamesPlayedByPlayerName
+        gamesPlayedByPlayerName,
+        preferredPlayerIds
       );
       const prioritizedRecentlyFinishedCandidates = sortPlayersByAssignmentPriority(
         categoryPlayers.filter(player => isPlayerRecentlyFinished(player)),
-        gamesPlayedByPlayerName
+        gamesPlayedByPlayerName,
+        preferredPlayerIds
       );
       const prioritizedCandidatesWithFallback = [
         ...prioritizedFreshCandidates,
@@ -819,11 +821,13 @@
 
         const malePlayers = sortPlayersByAssignmentPriority(
           mixEligiblePlayers.filter(player => getPlayerGenderKey(player) === 'male'),
-          gamesPlayedByPlayerName
+          gamesPlayedByPlayerName,
+          preferredPlayerIds
         );
         const femalePlayers = sortPlayersByAssignmentPriority(
           mixEligiblePlayers.filter(player => getPlayerGenderKey(player) === 'female'),
-          gamesPlayedByPlayerName
+          gamesPlayedByPlayerName,
+          preferredPlayerIds
         );
         if (malePlayers.length === 0 || femalePlayers.length === 0) return [];
 
@@ -1338,8 +1342,9 @@
       }
 
       const currentSessionId = getCurrentAutoQueueSessionId();
-      if (currentSessionId > 0 && Number(player.autoQueueOptOutSessionId) === currentSessionId) {
-        player.autoQueueOptOutSessionId = null;
+      if (currentSessionId > 0 && Number(player.lastFinishedAutoQueueSessionId) === currentSessionId) {
+        showToast('This player already finished in the current Auto-Queue session.', 'error');
+        return;
       }
 
       player.status = 'Waiting';
@@ -1365,11 +1370,6 @@
       player.team = null;
       player.autoQueue = false;
 
-      const currentSessionId = getCurrentAutoQueueSessionId();
-      if (currentSessionId > 0) {
-        player.autoQueueOptOutSessionId = currentSessionId;
-      }
-
       saveSystemState(appState);
       renderQueue();
       showToast(`${player.name} removed from Auto-Queue.`, 'success');
@@ -1380,7 +1380,7 @@
       const eligiblePlayers = appState.queue.filter(player =>
         player.status === 'Waiting'
         && normalizePlayerStatusValue(player.playerStatus) !== 'Inactive'
-        && (!currentSessionId || Number(player.autoQueueOptOutSessionId) !== currentSessionId)
+        && (!currentSessionId || Number(player.lastFinishedAutoQueueSessionId) !== currentSessionId)
       );
 
       if (eligiblePlayers.length === 0) {
@@ -1627,7 +1627,22 @@
       }, {});
 
       Object.keys(groupedByCategory).forEach(categoryKey => {
-        while (groupedByCategory[categoryKey].length >= 4 && courtPool.length > 0) {
+        while (groupedByCategory[categoryKey].length > 0 && courtPool.length > 0) {
+          const preferredCategoryPlayers = groupedByCategory[categoryKey];
+          const preferredPlayerIds = new Set(preferredCategoryPlayers.map(player => String(player.id)));
+          const supplementalCategoryPlayers = appState.queue.filter(player => {
+            if (player.status !== 'Waiting') return false;
+            if (player.autoQueue) return false;
+            if (normalizePlayerStatusValue(player.playerStatus) === 'Inactive') return false;
+            if (getAutoQueueCategoryKey(player) !== categoryKey) return false;
+            return isPlayerRecentlyFinished(player);
+          });
+
+          const combinedCategoryPlayers = [...preferredCategoryPlayers, ...supplementalCategoryPlayers];
+          if (combinedCategoryPlayers.length < 4) {
+            break;
+          }
+
           const matchingCourtIndex = courtPool.findIndex(court => {
             const assignedCategories = Array.isArray(court.assignedCategories)
               ? court.assignedCategories.map(category => String(category || '').trim().toLowerCase()).filter(Boolean)
@@ -1639,11 +1654,14 @@
             if (!hasCategoryMatch) return false;
 
             const eligiblePlayers = selectAutoQueuePlayersForCourt(
-              groupedByCategory[categoryKey],
+              combinedCategoryPlayers,
               court,
-              gamesPlayedByPlayerName
+              gamesPlayedByPlayerName,
+              preferredPlayerIds
             );
-            return eligiblePlayers.length === 4;
+
+            if (eligiblePlayers.length !== 4) return false;
+            return eligiblePlayers.some(player => preferredPlayerIds.has(String(player.id)));
           });
 
           if (matchingCourtIndex === -1) {
@@ -1652,9 +1670,10 @@
 
           const [court] = courtPool.splice(matchingCourtIndex, 1);
           const selectedPlayers = selectAutoQueuePlayersForCourt(
-            groupedByCategory[categoryKey],
+            combinedCategoryPlayers,
             court,
-            gamesPlayedByPlayerName
+            gamesPlayedByPlayerName,
+            preferredPlayerIds
           );
           if (selectedPlayers.length < 4) {
             break;
