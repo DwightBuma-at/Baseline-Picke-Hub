@@ -817,8 +817,18 @@
       return isPlayerOnCooldown(player);
     }
 
-    function selectAutoQueuePlayersForCourt(categoryPlayers, court, gamesPlayedByPlayerName = null, preferredPlayerIds = null) {
-      const courtGenderSetting = normalizeCourtGenderSetting(court.genderSetting);
+    function selectAutoQueuePlayersForCourt(categoryPlayers, court, gamesPlayedByPlayerName = null, preferredPlayerIds = null, slotsNeeded = null) {
+      const existingPlayers = Array.isArray(court?.players) ? court.players : [];
+      const availableSlots = Math.max(0, 4 - existingPlayers.length);
+      const parsedSlotsNeeded = Number(slotsNeeded);
+      const targetSlots = Number.isFinite(parsedSlotsNeeded)
+        ? Math.max(0, Math.min(availableSlots, Math.floor(parsedSlotsNeeded)))
+        : availableSlots;
+
+      if (targetSlots === 0) {
+        return [];
+      }
+
       const prioritizedFreshCandidates = sortPlayersByAssignmentPriority(
         categoryPlayers.filter(player => !isPlayerRecentlyFinished(player)),
         gamesPlayedByPlayerName,
@@ -835,53 +845,32 @@
       ];
 
       const selectPlayersFromCandidates = (prioritizedCandidates) => {
-        if (courtGenderSetting === 'Male' || courtGenderSetting === 'Female') {
-          const requiredGender = courtGenderSetting.toLowerCase();
-          const eligiblePlayers = prioritizedCandidates.filter(player => getPlayerGenderKey(player) === requiredGender);
-          return eligiblePlayers.length >= 4 ? eligiblePlayers.slice(0, 4) : [];
-        }
-
-        const mixEligiblePlayers = prioritizedCandidates.filter(player => {
-          const genderKey = getPlayerGenderKey(player);
-          return genderKey === 'male' || genderKey === 'female';
-        });
-
-        if (mixEligiblePlayers.length < 4) return [];
-
-        const malePlayers = sortPlayersByAssignmentPriority(
-          mixEligiblePlayers.filter(player => getPlayerGenderKey(player) === 'male'),
-          gamesPlayedByPlayerName,
-          preferredPlayerIds
-        );
-        const femalePlayers = sortPlayersByAssignmentPriority(
-          mixEligiblePlayers.filter(player => getPlayerGenderKey(player) === 'female'),
-          gamesPlayedByPlayerName,
-          preferredPlayerIds
-        );
-        if (malePlayers.length === 0 || femalePlayers.length === 0) return [];
-
-        const selectedPlayers = [malePlayers[0], femalePlayers[0]];
-        const selectedIds = new Set(selectedPlayers.map(player => String(player.id)));
+        const selectedPlayers = [];
+        const selectedIds = new Set();
 
         for (const player of prioritizedCandidates) {
-          if (selectedPlayers.length >= 4) break;
-          const genderKey = getPlayerGenderKey(player);
-          if (genderKey !== 'male' && genderKey !== 'female') continue;
-          const playerId = String(player.id);
+          if (selectedPlayers.length >= targetSlots) break;
+
+          const playerId = String(player?.id);
           if (selectedIds.has(playerId)) continue;
+
+          const projectedCourt = {
+            ...court,
+            players: [...existingPlayers, ...selectedPlayers]
+          };
+
+          const eligibilityCheck = canAssignPlayerToCourt(player, projectedCourt);
+          if (!eligibilityCheck.ok) continue;
+
           selectedPlayers.push(player);
           selectedIds.add(playerId);
         }
 
-        if (selectedPlayers.length < 4) return [];
-
-        const hasMale = selectedPlayers.some(player => getPlayerGenderKey(player) === 'male');
-        const hasFemale = selectedPlayers.some(player => getPlayerGenderKey(player) === 'female');
-        return hasMale && hasFemale ? selectedPlayers : [];
+        return selectedPlayers.length === targetSlots ? selectedPlayers : [];
       };
 
       const freshSelection = selectPlayersFromCandidates(prioritizedFreshCandidates);
-      if (freshSelection.length === 4) {
+      if (freshSelection.length === targetSlots) {
         return freshSelection;
       }
 
@@ -1427,18 +1416,35 @@
         return;
       }
 
+      let hasQueueChanges = false;
       eligiblePlayers.forEach(player => {
-        player.status = 'Waiting';
-        player.assignedCourt = null;
-        player.team = null;
-        player.autoQueue = true;
+        if (player.assignedCourt !== null) {
+          player.assignedCourt = null;
+          hasQueueChanges = true;
+        }
+
+        if (player.team !== null) {
+          player.team = null;
+          hasQueueChanges = true;
+        }
+
+        if (!player.autoQueue) {
+          player.autoQueue = true;
+          hasQueueChanges = true;
+        }
 
         if (currentSessionId > 0 && Number(player.autoQueueOptOutSessionId) === currentSessionId) {
           player.autoQueueOptOutSessionId = null;
+          hasQueueChanges = true;
         }
       });
 
-      processAutoQueueAssignments({ prioritizeByGamesPlayed: true, randomizeTeams: true });
+      const assignmentsMade = processAutoQueueAssignments({ prioritizeByGamesPlayed: true, randomizeTeams: true });
+
+      if (!hasQueueChanges && !assignmentsMade) {
+        return;
+      }
+
       saveSystemState(appState);
       renderQueue();
     }
@@ -1656,14 +1662,15 @@
       const prioritizeByGamesPlayed = options.prioritizeByGamesPlayed !== false;
       const randomizeTeams = Boolean(options.randomizeTeams);
       const randomizeCourts = options.randomizeCourts !== false;
+      let assignmentsMade = false;
       const availableCourts = appState.coords.filter(court => {
         const players = Array.isArray(court.players) ? court.players : [];
-        return players.length === 0;
+        return players.length < 4;
       });
 
       const courtPool = randomizeCourts ? shuffleArray(availableCourts) : availableCourts;
 
-      if (courtPool.length === 0) return;
+      if (courtPool.length === 0) return false;
 
       const gamesPlayedByPlayerName = prioritizeByGamesPlayed ? getGamesPlayedByPlayerName() : null;
 
@@ -1717,9 +1724,6 @@
           });
 
           const combinedCategoryPlayers = [...preferredCategoryPlayers, ...supplementalCategoryPlayers];
-          if (combinedCategoryPlayers.length < 4) {
-            break;
-          }
 
           const matchingCourtIndex = courtPool.findIndex(court => {
             const assignedCategories = Array.isArray(court.assignedCategories)
@@ -1731,14 +1735,24 @@
             const hasCategoryMatch = assignedCategories.includes(categoryKey);
             if (!hasCategoryMatch) return false;
 
+            const existingPlayers = Array.isArray(court.players) ? court.players : [];
+            const slotsNeeded = 4 - existingPlayers.length;
+            if (slotsNeeded <= 0) return false;
+
+            const hasDifferentExistingCategory = existingPlayers.some(player => getAutoQueueCategoryKey(player) !== categoryKey);
+            if (hasDifferentExistingCategory) return false;
+
+            if (combinedCategoryPlayers.length < slotsNeeded) return false;
+
             const eligiblePlayers = selectAutoQueuePlayersForCourt(
               combinedCategoryPlayers,
               court,
               gamesPlayedByPlayerName,
-              preferredPlayerIds
+              preferredPlayerIds,
+              slotsNeeded
             );
 
-            if (eligiblePlayers.length !== 4) return false;
+            if (eligiblePlayers.length !== slotsNeeded) return false;
             return eligiblePlayers.some(player => preferredPlayerIds.has(String(player.id)));
           });
 
@@ -1747,21 +1761,27 @@
           }
 
           const [court] = courtPool.splice(matchingCourtIndex, 1);
+          const existingPlayers = Array.isArray(court.players) ? court.players : [];
+          const slotsNeeded = 4 - existingPlayers.length;
+          if (slotsNeeded <= 0) {
+            continue;
+          }
+
           const selectedPlayers = selectAutoQueuePlayersForCourt(
             combinedCategoryPlayers,
             court,
             gamesPlayedByPlayerName,
-            preferredPlayerIds
+            preferredPlayerIds,
+            slotsNeeded
           );
-          if (selectedPlayers.length < 4) {
+          if (selectedPlayers.length < slotsNeeded) {
             break;
           }
 
           const selectedIds = new Set(selectedPlayers.map(player => String(player.id)));
           groupedByCategory[categoryKey] = groupedByCategory[categoryKey].filter(player => !selectedIds.has(String(player.id)));
 
-          const playersForCourt = selectedPlayers;
-          const teamAssignmentOrder = [...playersForCourt];
+          const teamAssignmentOrder = [...selectedPlayers];
 
           if (randomizeTeams) {
             for (let index = teamAssignmentOrder.length - 1; index > 0; index--) {
@@ -1770,11 +1790,27 @@
             }
           }
 
+          const teamCounts = {
+            'Team A': existingPlayers.filter(player => (player.team || 'Unassigned') === 'Team A').length,
+            'Team B': existingPlayers.filter(player => (player.team || 'Unassigned') === 'Team B').length
+          };
+
           teamAssignmentOrder.forEach((player, index) => {
             const queueIndex = appState.queue.findIndex(queuePlayer => queuePlayer.id == player.id);
             if (queueIndex === -1) return;
 
-            const team = index < 2 ? 'Team A' : 'Team B';
+            let team;
+            if (teamCounts['Team A'] >= 2) {
+              team = 'Team B';
+            } else if (teamCounts['Team B'] >= 2) {
+              team = 'Team A';
+            } else {
+              team = teamCounts['Team A'] <= teamCounts['Team B'] ? 'Team A' : 'Team B';
+            }
+
+            if (teamCounts[team] >= 2) return;
+
+            teamCounts[team] += 1;
             appState.queue[queueIndex].status = 'Assigned';
             appState.queue[queueIndex].assignedCourt = court.id;
             appState.queue[queueIndex].team = team;
@@ -1784,10 +1820,22 @@
             court.players.push(appState.queue[queueIndex]);
           });
 
-          court.status = 'occupied';
-          court.gameStartedAt = Date.now();
+          assignmentsMade = true;
+          if (court.players.length > 0) {
+            court.status = 'occupied';
+          }
+
+          if (court.players.length === 4 && !court.gameStartedAt) {
+            court.gameStartedAt = Date.now();
+          }
+
+          if (court.players.length < 4) {
+            court.gameStartedAt = null;
+          }
         }
       });
+
+      return assignmentsMade;
     }
 
     function getAutoQueueCategoryKey(player) {
